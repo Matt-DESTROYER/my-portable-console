@@ -142,7 +142,7 @@ int main() {
     gpio_init(PIN_DC); gpio_set_dir(PIN_DC, GPIO_OUT); gpio_put(PIN_DC, 1);
     gpio_init(PIN_RST); gpio_set_dir(PIN_RST, GPIO_OUT); gpio_put(PIN_RST, 1);
 
-    // initialinitise buttons
+    // init buttons
     gpio_init(PIN_BTN_UP); gpio_set_dir(PIN_BTN_UP, GPIO_IN); gpio_pull_up(PIN_BTN_UP);
     gpio_init(PIN_BTN_DOWN); gpio_set_dir(PIN_BTN_DOWN, GPIO_IN); gpio_pull_up(PIN_BTN_DOWN);
     gpio_init(PIN_BTN_OK); gpio_set_dir(PIN_BTN_OK, GPIO_IN); gpio_pull_up(PIN_BTN_OK);

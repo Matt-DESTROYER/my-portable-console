@@ -46,7 +46,7 @@ void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
     lcd_data(x0 >> 8); lcd_data(x0 & 0xFF);
     lcd_data(x1 >> 8); lcd_data(x1 & 0xFF);
 
-    // set column address
+    // set row address
     lcd_cmd(0x2B);
     lcd_data(y0 >> 8); lcd_data(y0 & 0xFF);
     lcd_data(y1 >> 8); lcd_data(y1 & 0xFF);

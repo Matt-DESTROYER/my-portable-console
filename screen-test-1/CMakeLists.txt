@@ -40,9 +40,6 @@ add_executable(screen-test-1 screen-test-1.c )
 pico_set_program_name(screen-test-1 "screen-test-1")
 pico_set_program_version(screen-test-1 "0.1")
 
-# Generate PIO header
-pico_generate_pio_header(screen-test-1 ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
-
 # Modify the below lines to enable/disable output over UART/USB
 pico_enable_stdio_uart(screen-test-1 0)
 pico_enable_stdio_usb(screen-test-1 1)
