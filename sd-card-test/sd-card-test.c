@@ -49,7 +49,7 @@ bool test_sd_card() {
     // select SD card
     gpio_put(PIN_SDCS, 0);
 
-    // semd CMD0 (reset)
+    // send CMD0 (reset)
     spi_write_blocking(SPI_PORT, cmd0, 6);
 
     // wait for response (expect 0x01)
@@ -119,6 +119,8 @@ bool sd_init() {
     // CMD8 check voltage
     printf("Sending CMD8\n");
     response = sd_send_cmd(8, 0x1AA, 0x87); // arg: 3.3V pattern
+    uint8_t r7[4];
+    spi_read_blocking(SPI_PORT, 0xFF, r7, 4);
     gpio_put(PIN_SDCS, 1);
 
     // ACMD41 loop (wake up)
@@ -210,7 +212,7 @@ int main() {
 
     // reset (CMD0)
     uint8_t r = sd_send_cmd(0, 0, 0x95);
-    printf("CMD0 response: 0x02X\n", r);
+    printf("CMD0 response: 0x%02X\n", r);
 
     // technically we need to init with CMD8 and ACMD41
 
@@ -219,7 +221,7 @@ int main() {
         if (sd_read_sector(0, buffer)) {
             printf("Sector 0 dump:\n");
 
-            // print the first 64 chars as ASCII
+            // print the first 512 bytes as ASCII
             for (int i = 0; i < 512; i++) {
                 if (i % 16 == 0) {
                     printf("\n%04X: ", i);
@@ -230,7 +232,7 @@ int main() {
                     printf(".");
                 }
             }
-            printf("\n\n SUCCESS: found filesystem signature!\n");
+            printf("\n\n SUCCESS: found filesystem signature (unverified)!\n");
         } else {
             printf("FAIL: might need the full 'ACMD41' init sequence");
         }
