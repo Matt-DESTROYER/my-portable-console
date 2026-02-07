@@ -1,13 +1,13 @@
 Write-Host "--- INSTALLING PICO DEVELOPMENT TOOLS ---" -ForegroundColor Cyan
 
-if (Get-Command git --ErrorAction SilentlyContinue) {
+if (Get-Command git -ErrorAction SilentlyContinue) {
 	Write-Host "Git installed, skipping..."
 } else {
 	Write-Host "Installing Git..."
 	winget install --id Git.Git -e --source winget
 }
 
-if (Get-Command python --ErrorAction SilentlyContinue) {
+if (Get-Command python -ErrorAction SilentlyContinue) {
 	Write-Host "Python installed, skipping..."
 } else {
 	Write-Host "Installing Python..."
