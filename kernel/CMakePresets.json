@@ -1,0 +1,35 @@
+{
+	"version": 3,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 15
+	},
+	"configurePresets": [
+		{
+			"name": "default",
+			"displayName": "Default Config",
+			"description": "Default build using Ninja",
+			"generator": "Ninja",
+			"binaryDir": "${sourceDir}/build",
+			"cacheVariables": {
+				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+				"PICO_SDK_FETCH_FROM_GIT": "ON"
+			},
+			"environment": {
+				"PICO_SDK_PATH": "${sourceDir}/pico-sdk"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "debug",
+			"configurePreset": "default",
+			"configuration": "Debug"
+		},
+		{
+			"name": "release",
+			"configurePreset": "default",
+			"configuration": "Release"
+		}
+	]
+}
