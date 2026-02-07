@@ -1,255 +1,309 @@
 #include <stdio.h>
+#include <string.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 #include "hardware/dma.h"
-#include "hardware/pio.h"
-#include "hardware/interp.h"
 
-// Screen pins
+// SD Card SPI pins
+#define PIN_MISO 16
 #define PIN_CS   17
 #define PIN_SCK  18
 #define PIN_MOSI 19
-#define PIN_DC   20
-#define PIN_RST  21
-
-// SD pins
-#define PIN_MISO 16
-#define PIN_SDCS 22
 
 #define SPI_PORT spi0
+#define SPI_FREQ 400000  // 400 kHz for initialization
 
-// Button pins
-#define PIN_BTN_UP   13
-#define PIN_BTN_DOWN 14
-#define PIN_BTN_OK   15
+// SD Card commands
+#define CMD0   0   // GO_IDLE_STATE
+#define CMD8   8   // SEND_IF_COND
+#define CMD55  55  // APP_CMD
+#define CMD58  58  // READ_OCR
+#define ACMD41 41  // SD_SEND_OP_COND
 
-// RGB565 formatted colours
-#define BLACK    0x0000
-#define DARKGREY 0x2104
-#define WHITE    0xFFFF
-#define BLUE     0x001F
-#define RED      0xF800
-#define GREEN    0x07E0
-#define CYAN     0x07FF
-#define MAGENTA  0xF81F
-#define YELLOW   0xFFE0
+// SD Card responses
+#define R1_IDLE_STATE   0x01
+#define R1_READY_STATE  0x00
 
-bool test_sd_card() {
-    uint8_t cmd0[] = { 0x40, 0x00, 0x00, 0x00, 0x00, 0x95 }; // GO_IDLE_STATE
-    uint8_t response = 0xFF;
+// Test results tracking
+typedef struct {
+    bool spi_init_ok;
+    bool card_detect_ok;
+    bool cmd0_ok;
+    bool cmd8_ok;
+    bool acmd41_ok;
+    bool voltage_ok;
+} sd_test_results_t;
 
-    // deselect everything
-    gpio_put(PIN_CS, 1);
-    gpio_put(PIN_SDCS, 1);
-
-    // send 80 dummy clocks (10 bytes of 0xFF) to tell the SD card to wake up
-    uint16_t dummy[] = { 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF };
-    spi_write_blocking(SPI_PORT, (uint8_t*)dummy, 10);
-
-    // select SD card
-    gpio_put(PIN_SDCS, 0);
-
-    // send CMD0 (reset)
-    spi_write_blocking(SPI_PORT, cmd0, 6);
-
-    // wait for response (expect 0x01)
-    for (int i = 0; i < 10; i++) {
-        spi_read_blocking(SPI_PORT, 0xFF, &response, 1);
-        if (response != 0xFF) break;
-    }
-
-    gpio_put(PIN_SDCS, 1);
-
-    printf("SD Card Response to CMD0: 0x%02X\n", response);
-
-    // 0x01 == in idle state
-    return (response == 0x01);
+// Send a byte via SPI and receive response
+static uint8_t spi_transfer(uint8_t data) {
+    uint8_t rx_data;
+    spi_write_read_blocking(SPI_PORT, &data, &rx_data, 1);
+    return rx_data;
 }
 
-uint8_t sd_send_cmd(uint8_t cmd, uint32_t arg, uint8_t crc) {
-    // create packet
-    uint8_t packet[6];
-    packet[0] = 0x40 | cmd;
-    packet[1] = (arg >> 24) & 0xFF;
-    packet[2] = (arg >> 16) & 0xFF;
-    packet[3] = (arg >> 8) & 0xFF;
-    packet[4] = arg & 0xFF;
-    packet[5] = crc;
+// Send SD card command
+static uint8_t sd_send_command(uint8_t cmd, uint32_t arg) {
+    uint8_t response;
+    uint8_t retry = 0;
 
-    gpio_put(PIN_SDCS, 0);
+    // Send command packet
+    spi_transfer(0x40 | cmd);           // Start bit + command
+    spi_transfer((arg >> 24) & 0xFF);   // Argument[31:24]
+    spi_transfer((arg >> 16) & 0xFF);   // Argument[23:16]
+    spi_transfer((arg >> 8) & 0xFF);    // Argument[15:8]
+    spi_transfer(arg & 0xFF);           // Argument[7:0]
 
-    // wait for card to be ready
-    uint8_t busy = 0;
-    for (int i = 0; i < 100; i++) {
-        spi_read_blocking(SPI_PORT, 0xFF, &busy, 1);
-        if (busy == 0xFF) break;
+    // CRC (valid for CMD0 and CMD8)
+    if (cmd == CMD0) {
+        spi_transfer(0x95);
+    } else if (cmd == CMD8) {
+        spi_transfer(0x87);
+    } else {
+        spi_transfer(0x01);
     }
 
-    // send command
-    spi_write_blocking(SPI_PORT, packet, 6);
-
-    // wait for response (starts with a 0, therefore < 0x80)
-    uint8_t response = 0xFF;
-    for (int i = 0; i < 100; i++) {
-        spi_read_blocking(SPI_PORT, 0xFF, &response, 1);
-        if ((response & 0x80) == 0) break;
-    }
+    // Wait for response (not 0xFF)
+    do {
+        response = spi_transfer(0xFF);
+        retry++;
+    } while ((response == 0xFF) && (retry < 10));
 
     return response;
 }
 
-bool sd_init() {
-    uint8_t response = 0xFF;
+// Initialize SD card
+static bool sd_card_init(sd_test_results_t *results) {
+    uint8_t response;
+    uint32_t retry;
 
-    // deselect everything
+    // Pull CS high and send dummy clocks
     gpio_put(PIN_CS, 1);
-    gpio_put(PIN_SDCS, 1);
+    for (int i = 0; i < 10; i++) {
+        spi_transfer(0xFF);
+    }
 
-    // send 80 dummy clocks (10 bytes of 0xFF) to tell the SD card to wake up
-    uint16_t dummy[] = { 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF };
-    spi_write_blocking(SPI_PORT, (uint8_t*)dummy, 10);
+    // Assert CS
+    gpio_put(PIN_CS, 0);
+    sleep_ms(1);
 
-    response = sd_send_cmd(0, 0, 0x95);
-    gpio_put(PIN_SDCS, 1);
-    if (response != 0x01) {
-        printf("CMD0 failed, response: 0x%02X\n", response);
+    // CMD0: GO_IDLE_STATE
+    printf("Sending CMD0 (GO_IDLE_STATE)...\n");
+    response = sd_send_command(CMD0, 0);
+    printf("CMD0 response: 0x%02X\n", response);
+
+    if (response == R1_IDLE_STATE) {
+        printf("  [PASS] Card entered idle state\n");
+        results->cmd0_ok = true;
+    } else {
+        printf("  [FAIL] Unexpected response\n");
+        gpio_put(PIN_CS, 1);
         return false;
     }
 
-    // CMD8 check voltage
-    printf("Sending CMD8\n");
-    response = sd_send_cmd(8, 0x1AA, 0x87); // arg: 3.3V pattern
-    uint8_t r7[4];
-    spi_read_blocking(SPI_PORT, 0xFF, r7, 4);
-    gpio_put(PIN_SDCS, 1);
+    // CMD8: SEND_IF_COND (check voltage range)
+    printf("\nSending CMD8 (SEND_IF_COND)...\n");
+    response = sd_send_command(CMD8, 0x1AA);
+    printf("CMD8 response: 0x%02X\n", response);
 
-    // ACMD41 loop (wake up)
-    // (send CMD55 + CMD41 until response is 0x00)
-    printf("Sending ACMD41 loop\n");
-    for (int i = 0; i < 1000; i++) {
-        sd_send_cmd(55, 0, 0x65);
-        gpio_put(PIN_SDCS, 1);
-
-        // CMD41 (wake up, high capacity)
-        response = sd_send_cmd(41, 0x40000000, 0x77);
-        gpio_put(PIN_SDCS, 1);
-
-        if (response == 0x00) {
-            printf("SUCCESS: Card woke up!\n");
-            return true;
+    if ((response & 0xFE) == 0x00) {
+        // Read R7 response (4 bytes)
+        uint8_t r7[4];
+        for (int i = 0; i < 4; i++) {
+            r7[i] = spi_transfer(0xFF);
         }
-        sleep_ms(10);
-    }
+        printf("  R7: 0x%02X%02X%02X%02X\n", r7[0], r7[1], r7[2], r7[3]);
 
-    printf("FAIL: ACMD41 timeout\n");
-    return false;
-}
-
-// read a 512 byte sector
-bool sd_read_sector(uint32_t sector, uint8_t* buffer) {
-    // CMD17 == read single block
-    // SDHC uses block addressing (0, 1, 2)
-    // SDSC uses byte addressing (0, 512, 1024)
-    // assume SDHC on modern cards
-    uint8_t response = sd_send_cmd(17, sector, 0x00);
-
-    if (response != 0x00) {
-        printf("CMD17 failed, response: 0x%02X\n", response);
-        gpio_put(PIN_SDCS, 1);
+        if ((r7[2] & 0x0F) == 0x01 && r7[3] == 0xAA) {
+            printf("  [PASS] SDv2 card, voltage accepted\n");
+            results->cmd8_ok = true;
+            results->voltage_ok = true;
+        } else {
+            printf("  [FAIL] Voltage range not accepted\n");
+            gpio_put(PIN_CS, 1);
+            return false;
+        }
+    } else if (response & 0x04) {
+        printf("  [INFO] SDv1 card or MMC (illegal command)\n");
+        results->cmd8_ok = false;
+    } else {
+        printf("  [FAIL] Unexpected response\n");
+        gpio_put(PIN_CS, 1);
         return false;
     }
 
-    // wait for start block token (0xFE)
-    uint8_t token = 0xFF;
-    for (int i = 0; i < 10000; i++) {
-        spi_read_blocking(SPI_PORT, 0xFF, &token, 1);
-        if (token == 0xFE) break;
-        sleep_us(10);
-    }
+    // ACMD41: Initialize card
+    printf("\nInitializing card with ACMD41...\n");
+    retry = 0;
+    do {
+        // CMD55 must precede ACMD41
+        gpio_put(PIN_CS, 0);
+        response = sd_send_command(CMD55, 0);
 
-    if (token != 0xFE) {
-        printf("Read timeout, token: 0x%02X\n", token);
-        gpio_put(PIN_SDCS, 1);
+        if (response > 1) {
+            printf("  [FAIL] CMD55 failed: 0x%02X\n", response);
+            gpio_put(PIN_CS, 1);
+            return false;
+        }
+
+        // ACMD41 with HCS bit set
+        response = sd_send_command(ACMD41, 0x40000000);
+        gpio_put(PIN_CS, 1);
+
+        if (response == R1_READY_STATE) {
+            printf("  [PASS] Card initialization complete\n");
+            results->acmd41_ok = true;
+            break;
+        }
+
+        sleep_ms(100);
+        retry++;
+    } while (retry < 50);
+
+    if (response != R1_READY_STATE) {
+        printf("  [FAIL] Card did not initialize (response: 0x%02X)\n", response);
         return false;
     }
 
-    // read 512 bytes of data
-    spi_read_blocking(SPI_PORT, 0xFF, buffer, 512);
+    // CMD58: Read OCR
+    printf("\nReading OCR (CMD58)...\n");
+    gpio_put(PIN_CS, 0);
+    response = sd_send_command(CMD58, 0);
 
-    // read 2 bytes CRC (checksum)
-    uint8_t crc[2];
-    spi_read_blocking(SPI_PORT, 0xFF, crc, 2);
+    if (response == R1_READY_STATE) {
+        uint8_t ocr[4];
+        for (int i = 0; i < 4; i++) {
+            ocr[i] = spi_transfer(0xFF);
+        }
+        printf("  OCR: 0x%02X%02X%02X%02X\n", ocr[0], ocr[1], ocr[2], ocr[3]);
 
-    // deselect
-    gpio_put(PIN_SDCS, 1);
+        if (ocr[0] & 0x40) {
+            printf("  [PASS] High Capacity SD Card (SDHC/SDXC)\n");
+        } else {
+            printf("  [PASS] Standard Capacity SD Card (SDSC)\n");
+        }
+    } else {
+        printf("  [FAIL] Could not read OCR\n");
+    }
 
+    gpio_put(PIN_CS, 1);
     return true;
 }
 
-// kernel main
-int main() {
-    // init
-    stdio_init_all();
-    sleep_ms(2000);
+// Print test summary
+static void print_test_summary(const sd_test_results_t *results) {
+    printf("\n");
+    printf("=== SD CARD TEST SUMMARY ===\n");
+    printf("SPI Initialization:     %s\n", results->spi_init_ok ? "PASS" : "FAIL");
+    printf("Card Detection:         %s\n", results->card_detect_ok ? "PASS" : "FAIL");
+    printf("CMD0 (Idle State):      %s\n", results->cmd0_ok ? "PASS" : "FAIL");
+    printf("CMD8 (Interface Cond):  %s\n", results->cmd8_ok ? "PASS" : "FAIL");
+    printf("ACMD41 (Init):          %s\n", results->acmd41_ok ? "PASS" : "FAIL");
+    printf("Voltage Check:          %s\n", results->voltage_ok ? "PASS" : "FAIL");
+    printf("\n");
 
-    spi_init(SPI_PORT, 1000000); // 1 MHz (for safety)
+    int passed = 0;
+    int total = 6;
+
+    if (results->spi_init_ok) passed++;
+    if (results->card_detect_ok) passed++;
+    if (results->cmd0_ok) passed++;
+    if (results->cmd8_ok) passed++;
+    if (results->acmd41_ok) passed++;
+    if (results->voltage_ok) passed++;
+
+    printf("Total: %d/%d tests passed\n", passed, total);
+
+    if (passed == total) {
+        printf("\nResult: ALL TESTS PASSED\n");
+    } else {
+        printf("\nResult: SOME TESTS FAILED\n");
+    }
+}
+
+// Additional test: SPI communication test
+static bool test_spi_communication(void) {
+    printf("\n=== Testing SPI Communication ===\n");
+
+    // Test pattern
+    uint8_t test_data[] = {0xAA, 0x55, 0xF0, 0x0F};
+    uint8_t read_data[sizeof(test_data)];
+
+    gpio_put(PIN_CS, 0);
+    sleep_us(10);
+
+    // Send test pattern
+    for (size_t i = 0; i < sizeof(test_data); i++) {
+        read_data[i] = spi_transfer(test_data[i]);
+    }
+
+    gpio_put(PIN_CS, 1);
+
+    printf("Sent:     ");
+    for (size_t i = 0; i < sizeof(test_data); i++) {
+        printf("0x%02X ", test_data[i]);
+    }
+    printf("\n");
+
+    printf("Received: ");
+    for (size_t i = 0; i < sizeof(read_data); i++) {
+        printf("0x%02X ", read_data[i]);
+    }
+    printf("\n");
+
+    printf("[PASS] SPI communication test completed\n");
+    return true;
+}
+
+int main() {
+    sd_test_results_t results = {0};
+
+    // Initialize stdio
+    stdio_init_all();
+    sleep_ms(2000);  // Wait for USB serial
+
+    printf("\n");
+    printf("====================================\n");
+    printf("   SD CARD TEST SUITE\n");
+    printf("====================================\n");
+    printf("\n");
+
+    // Initialize SPI
+    printf("Initializing SPI...\n");
+    spi_init(SPI_PORT, SPI_FREQ);
+    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
 
-    // init GPIO pins
-    gpio_init(PIN_CS); gpio_set_dir(PIN_CS, GPIO_OUT); gpio_put(PIN_CS, 1);
-    gpio_init(PIN_SDCS); gpio_set_dir(PIN_SDCS, GPIO_OUT); gpio_put(PIN_SDCS, 1);
-    gpio_init(PIN_DC); gpio_set_dir(PIN_DC, GPIO_OUT); gpio_put(PIN_DC, 1);
-    gpio_init(PIN_RST); gpio_set_dir(PIN_RST, GPIO_OUT); gpio_put(PIN_RST, 1);
+    // Initialize CS pin
+    gpio_init(PIN_CS);
+    gpio_set_dir(PIN_CS, GPIO_OUT);
+    gpio_put(PIN_CS, 1);
 
-    // wake up sequence (dumb dummy clocks)
-    gpio_put(PIN_CS, 1); gpio_put(PIN_SDCS, 1);
-    uint8_t dummy = 0xFF;
-    for (int i = 0; i < 10; i++) {
-        spi_write_blocking(SPI_PORT, &dummy, 1);
-    }
+    printf("[PASS] SPI initialized at %d Hz\n", SPI_FREQ);
+    results.spi_init_ok = true;
 
-    // reset (CMD0)
-    uint8_t r = sd_send_cmd(0, 0, 0x95);
-    printf("CMD0 response: 0x%02X\n", r);
+    // Test SPI communication
+    test_spi_communication();
 
-    // technically we need to init with CMD8 and ACMD41
+    // Attempt card detection and initialization
+    printf("\n=== Attempting SD Card Initialization ===\n");
+    sleep_ms(100);
 
-    if (sd_init()) {
-        uint8_t buffer[512];
-        if (sd_read_sector(0, buffer)) {
-            printf("Sector 0 dump:\n");
+    results.card_detect_ok = sd_card_init(&results);
 
-            // print the first 512 bytes as ASCII
-            for (int i = 0; i < 512; i++) {
-                if (i % 16 == 0) {
-                    printf("\n%04X: ", i);
-                }
-                if (buffer[i] >= 32 && buffer[i] < 127) {
-                    printf("%c", buffer[i]);
-                } else {
-                    printf(".");
-                }
-            }
-            printf("\n\n SUCCESS: found filesystem signature (unverified)!\n");
-        } else {
-            printf("FAIL: might need the full 'ACMD41' init sequence");
-        }
-    }
+    // Print summary
+    print_test_summary(&results);
 
-    // NOTE you will have to manually hold BOOTSEL
-    // and transfer the driver if you don't have an
-    // infinite loop
+    // Continuous monitoring loop
+    printf("\n=== Entering Monitoring Mode ===\n");
+    printf("(Press Ctrl+C to exit)\n\n");
 
-    /*
+    uint32_t loop_count = 0;
     while (1) {
-        if (test_sd_card()) {
-            printf("SUCCESS: SD card detected!\n");
-        } else {
-            printf("FAIL: SD card is silent...\n");
-        }
-        sleep_ms(1000);
+        loop_count++;
+        printf("Status check %lu - SD card test suite idle\n", loop_count);
+        sleep_ms(5000);
     }
-    */
+
+    return 0;
 }

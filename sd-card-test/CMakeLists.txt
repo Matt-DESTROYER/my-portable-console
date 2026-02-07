@@ -23,7 +23,7 @@ if (EXISTS ${picoVscode})
     include(${picoVscode})
 endif()
 # ====================================================================================
-set(PICO_BOARD pico2_w CACHE STRING "Board type")
+set(PICO_BOARD pico2 CACHE STRING "Board type")
 
 # Pull in Raspberry Pi Pico SDK (must be before project)
 include(pico_sdk_import.cmake)
@@ -54,13 +54,9 @@ target_include_directories(sd-card-test PRIVATE
 )
 
 # Add any user requested libraries
-target_link_libraries(sd-card-test 
+target_link_libraries(sd-card-test
         hardware_spi
         hardware_dma
-        hardware_pio
-        hardware_interp
-        
         )
 
 pico_add_extra_outputs(sd-card-test)
-
