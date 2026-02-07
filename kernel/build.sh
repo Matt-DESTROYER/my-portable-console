@@ -11,7 +11,6 @@ fi
 # --- BUILD ---
 # configure
 echo "Configuring project..."
-cd build
 cmake --preset default
 
 if [ $? -ne 0 ]; then
