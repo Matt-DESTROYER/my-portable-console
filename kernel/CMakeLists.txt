@@ -105,9 +105,9 @@ target_link_libraries(my_console pico_stdlib hardware_spi)
 # --- USB OUTPUT FIX ---
 # Keeps the USB alive for serial debugging
 #if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-	pico_enable_stdio_usb(my_console 0)
+#	pico_enable_stdio_usb(my_console 0)
 #else()
-#	pico_enable_stdio_usb(my_console 1)
+	pico_enable_stdio_usb(my_console 1)
 #endif()
 
 pico_enable_stdio_uart(my_console 0)
