@@ -63,6 +63,14 @@ target_compile_options(my_console PRIVATE
 )
 target_link_options(my_console PRIVATE
 	-Wl,--gc-sections
+	# for GCC 13 LTO - force linker to keep the IO wrappers
+	-Wl,--undefined=__wrap_printf
+	-Wl,--undefined=__wrap_vprintf
+	-Wl,--undefined=__wrap_snprintf
+	-Wl,--undefined=__wrap_vsnprintf
+	-Wl,--undefined=__wrap_puts
+	-Wl,--undefined=__wrap_putchar
+	-Wl,--undefined=__wrap_getchar
 )
 
 # --- DISABLE EXCEPTIONS AND RTTI
