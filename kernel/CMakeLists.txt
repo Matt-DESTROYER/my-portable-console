@@ -46,6 +46,54 @@ add_executable(my_console
 	src/drivers/buttons.c
 )
 
+# --- LTO ---
+include(CheckIPOSupported)
+check_ipo_supported(RESULT result OUTPUT output)
+if (result)
+	set_property(TARGET my_console PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+	message(STATUS "LTO (Link Time Optimization) Enabled")
+else()
+	message(WARNING "LTO not supported: ${output}")
+endif()
+
+# --- STRIP DEAD CODE ---
+target_compile_options(my_console PRIVATE
+	-ffunction-sections
+	-fdata-sections
+)
+target_link_options(my_console PRIVATE
+	-Wl,--gc-sections
+)
+
+# --- DISABLE EXCEPTIONS AND RTTI
+target_compile_options(my_console PRIVATE
+	$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+	$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
+)
+
+# --- DEBUG CONFIG ---
+# generate .map files to see memory on crash in debug mode
+target_link_options(my_console PRIVATE
+	$<$<CONFIG:Debug>:-Wl,-Map=${CMAKE_BINARY_DIR}/my_console.map>
+)
+# don't use O0, optimise for debugging
+target_compile_options(my_console PRIVATE
+	$<$<CONFIG:Debug>:-Og>
+	$<$<CONFIG:Debug>:-g3>
+)
+
+# --- RELEASE CONFIG ---
+target_compile_options(my_console PRIVATE
+	$<$<CONFIG:Release>:-O3>
+)
+
+# --- PICO RUNTIME OPTIMISATIONS ---
+# "pico" (balanced) | "compiler" (pico + all C99 formatting flags, huge) | "minimal" (no floats of 64-bit integers and limited formatting, tiny)
+pico_set_printf_implementation(my_console pico)
+
+# use hardware FPU for fast math
+pico_set_float_implementation(my_console pico)
+
 # --- INCLUDE ---
 target_include_directories(my_console PRIVATE
 	${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -56,7 +104,12 @@ target_link_libraries(my_console pico_stdlib hardware_spi)
 
 # --- USB OUTPUT FIX ---
 # Keeps the USB alive for serial debugging
-pico_enable_stdio_usb(my_console 1)
+#if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+#	pico_enable_stdio_usb(my_console 0)
+#else()
+	pico_enable_stdio_usb(my_console 1)
+#endif()
+
 pico_enable_stdio_uart(my_console 0)
 
 pico_add_extra_outputs(my_console)
