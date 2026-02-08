@@ -27,9 +27,10 @@
 #define SD_INIT_MHZ  400000   // 400 kHz
 #define SD_MHZ       20000000 //  25.0 MHz
 
-#ifdef JUMPER_WIRES
-#define DEFAULT_MHZ JUMPER_MHZ
-#endif
+`#ifdef` JUMPER_WIRES
+`#undef` DEFAULT_MHZ
+`#define` DEFAULT_MHZ JUMPER_MHZ
+`#endif`
 
 void pin_init(uint gpio);
 
