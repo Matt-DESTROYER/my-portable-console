@@ -25,7 +25,7 @@
 #define DEFAULT_MHZ  62500000 //  62.5 MHz
 #define JUMPER_MHZ   31250000 //  31.25 MHz
 #define SD_INIT_MHZ  400000   // 400 kHz
-#define SD_MHZ       20000000 //  25.0 MHz
+#define SD_MHZ       20000000 //  20.0 MHz
 
 `#ifdef` JUMPER_WIRES
 `#undef` DEFAULT_MHZ
