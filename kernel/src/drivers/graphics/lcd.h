@@ -1,5 +1,5 @@
-#ifndef KERNEL_GRAPHICS_SCREEN_H
-#define KERNEL_GRAPHICS_SCREEN_H
+#ifndef KERNEL_GRAPHICS_LCD_H
+#define KERNEL_GRAPHICS_LCD_H
 
 #include <stdbool.h>
 #include <stdint.h>

@@ -3,6 +3,12 @@
 #include "hardware/pio.h"
 #include "pins.h"
 
+void button_init(uint button) {
+	gpio_init(button);
+	gpio_set_dir(button, GPIO_IN);
+	gpio_pull_up(button);
+}
+
 /**
  * Initialize hardware for all button inputs.
  *
@@ -10,9 +16,9 @@
  * direction and pull state via pin_init).
  */
 void buttons_init() {
-	pin_init(PIN_BTN_UP);
-	pin_init(PIN_BTN_DOWN);
-	pin_init(PIN_BTN_OK);
+	button_init(PIN_BTN_UP);
+	button_init(PIN_BTN_DOWN);
+	button_init(PIN_BTN_OK);
 }
 
 /**

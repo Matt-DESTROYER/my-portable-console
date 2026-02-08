@@ -13,7 +13,6 @@
  */
 void draw_menu_item(int y, int index, bool selected) {
 	uint16_t box_colour = selected ? WHITE : DARKGREY;
-	uint16_t dot_colour = selected ? RED : DARKGREY;
 
 	lcd_fill_rect(40, y, 160, 40, box_colour);
 
