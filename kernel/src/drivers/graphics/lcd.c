@@ -61,6 +61,7 @@ void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
  * @param colour 16-bit color value in RGB565 format (transmitted as high byte then low byte).
  */
 void lcd_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colour) {
+	if (w == 0 || h == 0) return;
 	lcd_set_window(x, y, x + w - 1, y + h - 1);
 
 	uint8_t hi = colour >> 8;
