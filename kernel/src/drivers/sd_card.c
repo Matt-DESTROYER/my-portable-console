@@ -93,6 +93,12 @@ bool sd_init() {
 	spi_read_blocking(SPI_PORT, 0xFF, r7, 4);
 	gpio_put(PIN_SDCS, 1);
 
+	// Verify R7: last byte should echo 0xAA, and voltage accepted (0x01)
+	if (response != 0x01 || r7[3] != 0xAA || (r7[2] & 0x0F) != 0x01) {
+		// Not a v2+ SDHC/SDXC card — unsupported
+		return false;
+	}
+
 	// ACMD41 loop (wake up)
 	// (send CMD55 + CMD41 until response is 0x00)
 	//printf("Sending ACMD41 loop\n");
