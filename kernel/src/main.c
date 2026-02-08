@@ -34,6 +34,7 @@ int main() {
 	pin_init(PIN_CS);
 	pin_init(PIN_DC);
 	pin_init(PIN_RST);
+	pin_init(PIN_SDCS);
 
 	buttons_init();
 
