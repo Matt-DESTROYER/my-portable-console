@@ -5,45 +5,6 @@
 #include "pins.h"
 
 /**
- * Perform a basic SD card presence and wake-up check by sending CMD0.
- *
- * Sends the GO_IDLE_STATE (CMD0) command to the selected SD card and polls for a response.
- *
- * @returns `true` if the card responded with 0x01 (idle state), `false` otherwise.
- */
-bool test_sd_card() {
-	uint8_t cmd0[] = { 0x40, 0x00, 0x00, 0x00, 0x00, 0x95 }; // GO_IDLE_STATE
-	uint8_t response = 0xFF;
-
-	// deselect everything
-	gpio_put(PIN_CS, 1);
-	gpio_put(PIN_SDCS, 1);
-
-	// send 80 dummy clocks (10 bytes of 0xFF) to tell the SD card to wake up
-	uint16_t dummy[] = { 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF };
-	spi_write_blocking(SPI_PORT, (uint8_t*)dummy, 10);
-
-	// select SD card
-	gpio_put(PIN_SDCS, 0);
-
-	// send CMD0 (reset)
-	spi_write_blocking(SPI_PORT, cmd0, 6);
-
-	// wait for response (expect 0x01)
-	for (int i = 0; i < 10; i++) {
-		spi_read_blocking(SPI_PORT, 0xFF, &response, 1);
-		if (response != 0xFF) break;
-	}
-
-	gpio_put(PIN_SDCS, 1);
-
-	//printf("SD Card Response to CMD0: 0x%02X\n", response);
-
-	// 0x01 == in idle state
-	return (response == 0x01);
-}
-
-/**
  * Send a 6-byte SD command packet and return the card's response.
  *
  * @param cmd SD command index (command number).
@@ -99,6 +60,8 @@ bool sd_init() {
 	gpio_put(PIN_CS, 1);
 	gpio_put(PIN_SDCS, 1);
 
+	spi_set_baudrate(SPI_PORT, SD_INIT_MHZ);
+
 	// send 80 dummy clocks (10 bytes of 0xFF) to tell the SD card to wake up
 	uint16_t dummy[] = { 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF };
 	spi_write_blocking(SPI_PORT, (uint8_t*)dummy, 10);
@@ -106,12 +69,11 @@ bool sd_init() {
 	response = sd_send_cmd(0, 0, 0x95);
 	gpio_put(PIN_SDCS, 1);
 	if (response != 0x01) {
-		//printf("CMD0 failed, response: 0x%02X\n", response);
+		spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
 		return false;
 	}
 
 	// CMD8 check voltage
-	//printf("Sending CMD8\n");
 	response = sd_send_cmd(8, 0x1AA, 0x87); // arg: 3.3V pattern
 	uint8_t r7[4];
 	spi_read_blocking(SPI_PORT, 0xFF, r7, 4);
@@ -120,28 +82,28 @@ bool sd_init() {
 	// Verify R7: last byte should echo 0xAA, and voltage accepted (0x01)
 	if (response != 0x01 || r7[3] != 0xAA || (r7[2] & 0x0F) != 0x01) {
 		// Not a v2+ SDHC/SDXC card — unsupported
+		spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
 		return false;
 	}
 
 	// ACMD41 loop (wake up)
 	// (send CMD55 + CMD41 until response is 0x00)
-	//printf("Sending ACMD41 loop\n");
 	for (int i = 0; i < 1000; i++) {
 		sd_send_cmd(55, 0, 0x65);
 		gpio_put(PIN_SDCS, 1);
 
-		// CMD41 (wake up, high capacity)
 		response = sd_send_cmd(41, 0x40000000, 0x77);
 		gpio_put(PIN_SDCS, 1);
 
 		if (response == 0x00) {
-			//printf("SUCCESS: Card woke up!\n");
+			spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
 			return true;
 		}
 		sleep_ms(10);
 	}
 
-	//printf("FAIL: ACMD41 timeout\n");
+	spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
+
 	return false;
 }
 
@@ -163,11 +125,14 @@ bool sd_read_sector(uint32_t sector, uint8_t* buffer) {
 	// SDHC uses block addressing (0, 1, 2)
 	// SDSC uses byte addressing (0, 512, 1024)
 	// assume SDHC on modern cards
+
+	spi_set_baudrate(SPI_PORT, SD_MHZ);
+
 	uint8_t response = sd_send_cmd(17, sector, 0x00);
 
 	if (response != 0x00) {
-		//printf("CMD17 failed, response: 0x%02X\n", response);
 		gpio_put(PIN_SDCS, 1);
+		spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
 		return false;
 	}
 
@@ -180,8 +145,8 @@ bool sd_read_sector(uint32_t sector, uint8_t* buffer) {
 	}
 
 	if (token != 0xFE) {
-		//printf("Read timeout, token: 0x%02X\n", token);
 		gpio_put(PIN_SDCS, 1);
+		spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
 		return false;
 	}
 
@@ -192,7 +157,8 @@ bool sd_read_sector(uint32_t sector, uint8_t* buffer) {
 	uint8_t crc[2];
 	spi_read_blocking(SPI_PORT, 0xFF, crc, 2);
 
-	// deselect
+	spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
+
 	gpio_put(PIN_SDCS, 1);
 
 	return true;

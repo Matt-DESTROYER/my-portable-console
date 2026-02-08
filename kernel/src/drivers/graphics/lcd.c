@@ -7,8 +7,11 @@
  * @param cmd Command byte to transmit.
  */
 void lcd_cmd(uint8_t cmd) {
-	gpio_put(PIN_CS, 0); gpio_put(PIN_DC, 0);
+	gpio_put(PIN_CS, 0);
+	gpio_put(PIN_DC, 0);
+	
 	spi_write_blocking(SPI_PORT, &cmd, 1);
+	
 	gpio_put(PIN_CS, 1);
 }
 
@@ -18,8 +21,11 @@ void lcd_cmd(uint8_t cmd) {
  * @param data The byte to send as display data.
  */
 void lcd_data(uint8_t data) {
-	gpio_put(PIN_CS, 0); gpio_put(PIN_DC, 1);
+	gpio_put(PIN_CS, 0);
+	gpio_put(PIN_DC, 1);
+	
 	spi_write_blocking(SPI_PORT, &data, 1);
+	
 	gpio_put(PIN_CS, 1);
 }
 
@@ -35,15 +41,25 @@ void lcd_data(uint8_t data) {
  * @param y1 Bottom row index (end, inclusive).
  */
 void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
+	spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
+
 	// set column address
 	lcd_cmd(0x2A);
-	lcd_data(x0 >> 8); lcd_data(x0 & 0xFF);
-	lcd_data(x1 >> 8); lcd_data(x1 & 0xFF);
+	
+	lcd_data(x0 >> 8);
+	lcd_data(x0 & 0xFF);
+	
+	lcd_data(x1 >> 8);
+	lcd_data(x1 & 0xFF);
 
 	// set row address
 	lcd_cmd(0x2B);
-	lcd_data(y0 >> 8); lcd_data(y0 & 0xFF);
-	lcd_data(y1 >> 8); lcd_data(y1 & 0xFF);
+	
+	lcd_data(y0 >> 8);
+	lcd_data(y0 & 0xFF);
+	
+	lcd_data(y1 >> 8);
+	lcd_data(y1 & 0xFF);
 
 	// memory write command
 	lcd_cmd(0x2C);
@@ -61,7 +77,10 @@ void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
  * @param colour 16-bit color value in RGB565 format (transmitted as high byte then low byte).
  */
 void lcd_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colour) {
+	spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
+
 	if (w == 0 || h == 0) return;
+
 	lcd_set_window(x, y, x + w - 1, y + h - 1);
 
 	uint8_t hi = colour >> 8;
@@ -86,12 +105,21 @@ void lcd_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colo
  * turns the display on.
  */
 void lcd_init() {
-	// reset the chip
-	gpio_put(PIN_RST, 1); sleep_ms(5);
-	gpio_put(PIN_RST, 0); sleep_ms(20);
-	gpio_put(PIN_RST, 1); sleep_ms(150);
+	spi_set_baudrate(SPI_PORT, DEFAULT_MHZ);
 
-	lcd_cmd(0x01); sleep_ms(150); // software Reset
+	// reset the chip
+	gpio_put(PIN_RST, 1);
+	sleep_ms(5);
+
+	gpio_put(PIN_RST, 0);
+	sleep_ms(20);
+
+	gpio_put(PIN_RST, 1);
+	sleep_ms(150);
+	
+	// software reset
+	lcd_cmd(0x01);
+	sleep_ms(150);
 
 	// power & voltage settings
 	lcd_cmd(0xCB); lcd_data(0x39); lcd_data(0x2C); lcd_data(0x00); lcd_data(0x34); lcd_data(0x02);
@@ -105,11 +133,29 @@ void lcd_init() {
 	lcd_cmd(0xC5); lcd_data(0x3e); lcd_data(0x28);
 	lcd_cmd(0xC7); lcd_data(0x86);
 
-	lcd_cmd(0x36); lcd_data(0x48); // rotation/orientation
-	lcd_cmd(0x3A); lcd_data(0x55); // pixel format (16-bit)
-	lcd_cmd(0xB1); lcd_data(0x00); lcd_data(0x18);
-	lcd_cmd(0xB6); lcd_data(0x08); lcd_data(0x82); lcd_data(0x27);
+	// memory access control (orientation)
+	lcd_cmd(0x36);
+	lcd_data(0x48);
+	
+	// pixel format (16-bit)
+	lcd_cmd(0x3A);
+	lcd_data(0x55);
+	
+	// frame rate control
+	lcd_cmd(0xB1);
+	lcd_data(0x00);
+	lcd_data(0x18);
 
-	lcd_cmd(0x11); sleep_ms(120); // sleep out
-	lcd_cmd(0x29); sleep_ms(20);  // display on
+	// display function control
+	lcd_cmd(0xB6);
+	lcd_data(0x08);
+	lcd_data(0x82);
+	lcd_data(0x27);
+	
+	// sleep out
+	lcd_cmd(0x11); sleep_ms(120);
+
+	// display on
+	lcd_cmd(0x29);
+	sleep_ms(20);
 }
