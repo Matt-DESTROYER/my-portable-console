@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
+# --- DOWNLOAD PICO SDK IF NOT FOUND ---
 include(FetchContent)
 
 FetchContent_Declare(
@@ -40,10 +41,12 @@ pico_sdk_init()
 
 # --- SOURCE ---
 add_executable(my_console
-	src/main.c
-	src/drivers/screen.c
-	src/drivers/sd_card.c
+	src/drivers/graphics/lcd.c
+	src/drivers/graphics/os.c
 	src/drivers/buttons.c
+	src/drivers/pins.c
+	src/drivers/sd_card.c
+	src/main.c
 )
 
 # --- LTO ---
@@ -108,7 +111,13 @@ target_include_directories(my_console PRIVATE
 )
 
 # --- LIBRARIES ---
-target_link_libraries(my_console pico_stdlib hardware_spi)
+target_link_libraries(my_console
+	pico_stdlib
+	hardware_spi
+	hardware_dma
+	hardware_pio
+	hardware_interp
+)
 
 # --- USB OUTPUT FIX ---
 # Keeps the USB alive for serial debugging
