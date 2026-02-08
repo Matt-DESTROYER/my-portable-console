@@ -10,6 +10,16 @@
 #include "drivers/sd_card.h"
 #include "drivers/buttons.h"
 
+/**
+ * Initialize system peripherals and run the interactive LCD menu loop.
+ *
+ * Initializes stdio, SPI, GPIO pins, buttons, and the LCD, then enters an infinite
+ * polling loop that handles UP/DOWN navigation with wrap-around, OK to temporarily
+ * fill the display and refresh the menu, and redraws the visible menu items when
+ * selection changes.
+ *
+ * @returns Exit status code; under normal operation this function does not return. 
+ */
 int main() {
 	// initialise
 	stdio_init_all();

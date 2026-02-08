@@ -4,6 +4,13 @@
 
 #include "pins.h"
 
+/**
+ * Perform a basic SD card presence and wake-up check by sending CMD0.
+ *
+ * Sends the GO_IDLE_STATE (CMD0) command to the selected SD card and polls for a response.
+ *
+ * @returns `true` if the card responded with 0x01 (idle state), `false` otherwise.
+ */
 bool test_sd_card() {
 	uint8_t cmd0[] = { 0x40, 0x00, 0x00, 0x00, 0x00, 0x95 }; // GO_IDLE_STATE
 	uint8_t response = 0xFF;
@@ -36,6 +43,14 @@ bool test_sd_card() {
 	return (response == 0x01);
 }
 
+/**
+ * Send a 6-byte SD command packet and return the card's response.
+ *
+ * @param cmd SD command index (command number).
+ * @param arg 32-bit command argument, transmitted MSB first.
+ * @param crc CRC byte for the command packet.
+ * @return R1 response byte from the card (first response with MSB cleared); `0xFF` if no valid response was received.
+ */
 uint8_t sd_send_cmd(uint8_t cmd, uint32_t arg, uint8_t crc) {
 	// create packet
 	uint8_t packet[6];
@@ -68,6 +83,15 @@ uint8_t sd_send_cmd(uint8_t cmd, uint32_t arg, uint8_t crc) {
 	return response;
 }
 
+/**
+ * Initialize the SD card and wait until it enters the ready (operational) state.
+ *
+ * Performs the card reset and initialization sequence, including a GO_IDLE (CMD0),
+ * voltage range check (CMD8), and repeated application initialization (ACMD41)
+ * until the card signals readiness.
+ *
+ * @returns `true` if the card completed initialization and is ready (R1 response 0x00), `false` otherwise.
+ */
 bool sd_init() {
 	uint8_t response = 0xFF;
 
@@ -115,7 +139,19 @@ bool sd_init() {
 	return false;
 }
 
-// read a 512 byte sector
+/**
+ * Read a 512-byte sector (single block) from the SD card into the provided buffer.
+ *
+ * Sends CMD17 for the specified block index (assumes block-addressing / SDHC),
+ * waits for the start-block token (0xFE) with a timeout, reads 512 bytes into
+ * `buffer`, consumes the trailing 2-byte CRC, and deselects the card.
+ *
+ * @param sector Block index to read (block-addressing; use sector for SDHC).
+ * @param buffer Pointer to a buffer with space for at least 512 bytes where data
+ *               will be stored.
+ * @returns `true` if the sector was read successfully and stored in `buffer`,
+ *          `false` on timeout or command/transfer failure.
+ */
 bool sd_read_sector(uint32_t sector, uint8_t* buffer) {
 	// CMD17 == read single block
 	// SDHC uses block addressing (0, 1, 2)

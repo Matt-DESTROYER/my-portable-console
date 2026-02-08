@@ -2,21 +2,38 @@
 
 #include "../pins.h"
 
-// send command to lcd screen
+/**
+ * Send a single command byte to the LCD controller, asserting chip select and selecting command mode.
+ * @param cmd Command byte to transmit.
+ */
 void lcd_cmd(uint8_t cmd) {
 	gpio_put(PIN_CS, 0); gpio_put(PIN_DC, 0);
 	spi_write_blocking(SPI_PORT, &cmd, 1);
 	gpio_put(PIN_CS, 1);
 }
 
-// send data to lcd screen
+/**
+ * Write a single data byte to the LCD's data register (GRAM) via SPI.
+ *
+ * @param data The byte to send as display data.
+ */
 void lcd_data(uint8_t data) {
 	gpio_put(PIN_CS, 0); gpio_put(PIN_DC, 1);
 	spi_write_blocking(SPI_PORT, &data, 1);
 	gpio_put(PIN_CS, 1);
 }
 
-// set window area on lcd screen
+/**
+ * Define the rectangular pixel window for subsequent pixel data writes.
+ *
+ * Sets the display controller's column (X) and row (Y) address ranges and
+ * issues the memory-write command so following data writes target this region.
+ *
+ * @param x0 Leftmost column index (start, inclusive).
+ * @param y0 Top row index (start, inclusive).
+ * @param x1 Rightmost column index (end, inclusive).
+ * @param y1 Bottom row index (end, inclusive).
+ */
 void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
 	// set column address
 	lcd_cmd(0x2A);
@@ -32,7 +49,17 @@ void lcd_set_window(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
 	lcd_cmd(0x2C);
 }
 
-// draw rectangle on lcd screen
+/**
+ * Fill a rectangular area on the LCD with the specified color.
+ *
+ * Defines a drawing window from (x, y) with width `w` and height `h`, then writes the same color value to every pixel in that area.
+ *
+ * @param x      X coordinate of the rectangle's left edge (pixels).
+ * @param y      Y coordinate of the rectangle's top edge (pixels).
+ * @param w      Width of the rectangle (pixels).
+ * @param h      Height of the rectangle (pixels).
+ * @param colour 16-bit color value in RGB565 format (transmitted as high byte then low byte).
+ */
 void lcd_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colour) {
 	lcd_set_window(x, y, x + w - 1, y + h - 1);
 
@@ -50,6 +77,13 @@ void lcd_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t colo
 	gpio_put(PIN_CS, 1);
 }
 
+/**
+ * Initialize the LCD controller and prepare the display for normal operation.
+ *
+ * Performs a hardware reset sequence, programs standard power, voltage, orientation,
+ * and pixel-format registers required by the controller, exits sleep mode, and
+ * turns the display on.
+ */
 void lcd_init() {
 	// reset the chip
 	gpio_put(PIN_RST, 1); sleep_ms(5);
