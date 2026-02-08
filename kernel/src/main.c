@@ -25,7 +25,7 @@ int main() {
 	stdio_init_all();
 	sleep_ms(2000);
 
-	spi_init(SPI_PORT, 1000000); // 1 MHz (for safety)
+	spi_init(SPI_PORT, DEFAULT_MHZ); // 62.5 MHz
 
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
