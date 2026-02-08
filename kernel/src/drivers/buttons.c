@@ -1,6 +1,5 @@
 #include "buttons.h"
 
-#include "hardware/pio.h"
 #include "pins.h"
 
 void button_init(uint button) {
