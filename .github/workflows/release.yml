@@ -29,7 +29,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/kernel/pico-sdk
-          key: pico-sdk-${{ runner.os }}-${{ hashFiles('${{ github.workspace }}/kernel/CMakeLists.txt') }}
+          key: pico-sdk-${{ runner.os }}-${{ hashFiles('kernel/CMakeLists.txt') }}
       
       - name: Dependencies
         run: bash ./setup.sh
