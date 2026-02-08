@@ -60,7 +60,7 @@ Keep holding `BOOTSEL` down until the file explorer opens on your desktop (at le
 You can then let go and simply drag the kernel into said folder, it will close the file explorer automatically and restart the Pico with the new kernel!
 
 ## Datasheets
-A couple of datasheets are neccessary for reference when writing this driver, these can be found in the `datasheets` folder.
+A couple of datasheets are necessary for reference when writing this driver, these can be found in the `datasheets` folder.
  - `ILI9341 Datasheet.pdf` - The Adafruit screen I used
  - `Part 1 Physical Layer Simplified Specification Ver 9.10.pdf` - The datasheet for Micro SD cards
  - `Raspberry Pi Pico 2W Datasheet.pdf` - Raspberry Pi Pico 2 W
