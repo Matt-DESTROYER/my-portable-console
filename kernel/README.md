@@ -31,6 +31,7 @@ On Windows systems you will need:
  - `GnuArmEmbeddedToolchain`
  - `Ninja`
  - `CMake`
+ - `Visual Studio 2022 Build Tools`
  - `Python3`
  - `Git`
 
