@@ -18,7 +18,7 @@ uint8_t* heap_end() {
 /**
  * Compute the number of free bytes remaining in the heap after reserving a 1KB safety margin.
  *
- * @returns Number of free bytes available for allocation after reserving 1024 bytes (returned as a `uint8_t`).
+ * @returns Number of free bytes available for allocation after reserving 1024 bytes (returned as a `size_t`).
  */
 #define KERNEL_MEMORY_SAFETY 1024 // 1 KB safety margin
 size_t total_free_bytes() {

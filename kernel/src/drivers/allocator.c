@@ -163,6 +163,8 @@ void* realloc(void* ptr, size_t new_size) {
 void* calloc(size_t num, size_t size) {
 	if (__heap_start == NULL) return NULL;
 
+	if (num == 0 || size == 0) return NULL;
+
 	// prevent theoretical overflows (although there isn't enough memory so if you're overflowing something is very wrong)
 	if (num > SIZE_MAX / size) {
 		return NULL;

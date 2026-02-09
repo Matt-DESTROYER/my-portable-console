@@ -2,6 +2,7 @@
 #define KERNEL_MEMORY_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 extern uint8_t __end__;
 extern uint8_t __StackLimit;
