@@ -8,6 +8,6 @@ extern uint8_t __StackLimit;
 
 uint8_t* heap_start();
 uint8_t* heap_end();
-uint8_t total_free_bytes();
+size_t total_free_bytes();
 
 #endif

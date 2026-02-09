@@ -47,6 +47,7 @@ void alloc_free() {
 	while (header != NULL) {
 		MemoryHeader_t* next = header->next;
 		free(header);
+		header = next;
 	}
 
 	__heap_start = NULL;
@@ -69,11 +70,13 @@ void* malloc(size_t bytes) {
 	// at the end of the currently used heap
 	if ((uint8_t*)__heap_last + __heap_last->size
 			- __heap_start + bytes < __heap_size) {
-		__heap_last = (MemoryHeader_t*)(
+		__heap_last->next = (MemoryHeader_t*)(
 			(uint8_t*)__heap_last +
 			__heap_last->size +
 			sizeof(MemoryHeader_t)
 		);
+
+		__heap_last = __heap_last->next;
 
 		__heap_last->size = bytes;
 		__heap_last->in_use = true;
@@ -157,9 +160,15 @@ void* realloc(void* ptr, size_t new_size) {
 void* calloc(size_t num, size_t size) {
 	if (__heap_start == NULL) return NULL;
 
+	// prevent theoretical overflows (although there isn't enough memory so if you're overflowing something is very wrong)
+	if (num > SIZE_MAX / size) {
+		return NULL;
+	}
 	size_t total_bytes = num * size;
 
 	MemoryHeader_t* buffer = malloc(total_bytes);
+	if (buffer == NULL) return NULL;
+
 	// zero the memory
 	for (size_t i = 0; i < total_bytes; i++) {
 		*(((uint8_t*)buffer) + i) = 0;
