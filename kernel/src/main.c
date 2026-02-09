@@ -13,14 +13,14 @@
 #include "drivers/buttons.h"
 
 /**
- * Initialize system peripherals and run the interactive LCD menu loop.
+ * Initialize hardware and run the interactive LCD menu loop.
  *
- * Initializes stdio, SPI, GPIO pins, buttons, and the LCD, then enters an infinite
- * polling loop that handles UP/DOWN navigation with wrap-around, OK to temporarily
- * fill the display and refresh the menu, and redraws the visible menu items when
- * selection changes.
+ * Sets up stdio, SPI, control GPIOs, buttons, LCD, and the memory allocator,
+ * then enters an infinite polling loop that handles UP/DOWN menu navigation
+ * with wrap-around, an OK action that temporarily fills the display and
+ * refreshes the menu, and redraws visible menu items when the selection changes.
  *
- * @returns Exit status code; under normal operation this function does not return. 
+ * @returns Exit status code. Does not return under normal operation.
  */
 int main() {
 	// initialise
