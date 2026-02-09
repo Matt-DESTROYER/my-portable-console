@@ -5,6 +5,8 @@
 #include "hardware/interp.h"
 
 #include "drivers/pins.h"
+#include "drivers/memory.h"
+#include "drivers/allocator.h"
 #include "drivers/graphics/lcd.h"
 #include "drivers/graphics/os.h"
 #include "drivers/sd_card.h"
@@ -23,7 +25,6 @@
 int main() {
 	// initialise
 	stdio_init_all();
-	sleep_ms(2000);
 
 	spi_init(SPI_PORT, DEFAULT_MHZ); // 62.5 MHz
 
@@ -36,14 +37,14 @@ int main() {
 	pin_init(PIN_RST);
 
 	buttons_init();
-
 	lcd_init();
-	draw_menu();
+
+    alloc_init(heap_start(), total_free_bytes());
 
 	int selected_app = 0;
     int total_apps = 3;
     bool update_screen = true;
-
+    draw_menu();
     while (1) {
         if (button_pressed(PIN_BTN_UP)) {
             selected_app--;
