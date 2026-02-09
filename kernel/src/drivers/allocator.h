@@ -12,9 +12,6 @@ struct MemoryHeader {
 	MemoryHeader_t* next;
 };
 
-static MemoryHeader_t* __heap_first = NULL;
-static MemoryHeader_t* __heap_last = NULL;
-
 void alloc_init(uint8_t* heap_start, size_t size);
 void alloc_free();
 

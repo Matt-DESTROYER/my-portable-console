@@ -3,6 +3,9 @@
 static uint8_t* __heap_start = NULL;
 static size_t __heap_size;
 
+static MemoryHeader_t* __heap_first = NULL;
+static MemoryHeader_t* __heap_last = NULL;
+
 /**
  * Get the memory block header corresponding to a data pointer.
  * @param ptr Data pointer that was returned to the caller (points to the payload area).
