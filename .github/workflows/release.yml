@@ -39,6 +39,7 @@ jobs:
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v3
+        if: github.ref_type == 'tag'
         with:
           subject-path: "${{ github.workspace }}/kernel/build/my_console.uf2"
 
