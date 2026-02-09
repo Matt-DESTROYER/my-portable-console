@@ -92,15 +92,15 @@ void* malloc(size_t bytes) {
 	MemoryHeader_t* search = __heap_first;
 	while (search != NULL &&
 			(search->in_use ||
-			bytes < search->size)) {
+			bytes <= search->size)) {
 		// if possible, defragment
 		MemoryHeader_t* next = search->next;
-		if (!search->in_use && !next->in_use) {
+		if (next != NULL && !search->in_use && !next->in_use) {
 			search->size += next->size + sizeof(MemoryHeader_t);
 			search->next = next->next;
 
-			// if the defragmented block is now
-			if (bytes < search->size) break;
+			// if the defragmented block is now large enough
+			if (bytes <= search->size) break;
 		}
 
 		search = search->next;
