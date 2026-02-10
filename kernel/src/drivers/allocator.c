@@ -225,7 +225,7 @@ void* realloc(void* ptr, size_t new_size) {
 
 		// TODO: re-fragment extra space
 
-		return;
+		return _get_buffer_start(old_header);
 	};
 
 	uint8_t* buffer = malloc(new_size);
