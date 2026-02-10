@@ -123,7 +123,7 @@ void* malloc(size_t bytes) {
 	if (!_heap_last->in_use) {
 		if (_heap_last->size >= bytes) {
 			_heap_last->size = bytes;
-			_heap_first->in_use = true;
+			_heap_last->in_use = true;
 			return _get_buffer_start(_heap_last);
 		}
 
