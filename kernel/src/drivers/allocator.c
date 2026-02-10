@@ -31,6 +31,8 @@ static void __defragment_address(MemoryHeader_t* header) {
 		// this has to be the end, otherwise something has gone very wrong...
 		header->next = NULL;
 		__heap_last = header;
+		// dropping extra headers is intentional, it enables avoiding a search
+		// in malloc and just appending to the end of the heap
 	} else {
 		header->size = (uintptr_t)next->next
 			- (uintptr_t)header
