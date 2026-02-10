@@ -22,6 +22,10 @@ static MemoryHeader_t* _get_header(void* ptr) {
 	return (MemoryHeader_t*)ptr - 1;
 }
 
+static bool _is_free(MemoryHeader_t* header) {
+	return header->freed != 0;
+}
+
 static void* _get_buffer_start(MemoryHeader_t* header) {
 	return (void*)(header + 1);
 }
@@ -34,10 +38,10 @@ static uintptr_t _current_heap_end() {
 
 static void _extend_address(MemoryHeader_t* header) {
 	if (header == NULL) return;
-	if (header->next == NULL || header->next->freed == 0) return;
+	if (header->next == NULL || _is_free(header->next)) return;
 
 	MemoryHeader_t* next = header->next;
-	while (next->next != NULL && next->next->freed != 0) {
+	while (next->next != NULL && _is_free(next->next)) {
 		next = next->next;
 	}
 
@@ -58,7 +62,7 @@ static void _extend_address(MemoryHeader_t* header) {
 }
 
 static void _defragment_address(MemoryHeader_t* header) {
-	if (header == NULL || header->freed == 0) return;
+	if (header == NULL || _is_free(header)) return;
 	_extend_address(header);
 }
 
@@ -122,7 +126,7 @@ void* malloc(uintptr_t bytes) {
 	bytes = _align(bytes, ALIGN);
 
 	// check if the last block is free, if so we can extend it
-	if (_heap_last->freed != 0) {
+	if (_is_free(_heap_last->freed)) {
 		if (_heap_last->size >= bytes) {
 			_heap_last->size = bytes;
 			_heap_last->freed = 0;
@@ -171,11 +175,11 @@ void* malloc(uintptr_t bytes) {
 	// search for an unused block
 	MemoryHeader_t* search = _heap_first;
 	while (search != NULL &&
-			(search->freed == 0 ||
+			(!_is_free(search) ||
 			bytes > search->size)) {
 		// if possible, defragment
 		MemoryHeader_t* next = search->next;
-		if (next != NULL && search->freed != 0 && next->freed != 0) {
+		if (next != NULL && _is_free(search) && _is_free(next->freed)) {
 			_defragment_address(search);
 
 			// if the defragmented block is now large enough

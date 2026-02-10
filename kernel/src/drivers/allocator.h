@@ -16,12 +16,12 @@ typedef struct MemoryHeader {
 	uint8_t freed;
 } MemoryHeader_t;
 
-void alloc_init(uint8_t* heap_start, size_t size);
+void alloc_init(uint8_t* heap_start, uintptr_t size);
 void alloc_free();
 
-void* malloc(size_t bytes);
-void* realloc(void* ptr, size_t new_size);
-void* calloc(size_t num, size_t size);
+void* malloc(uintptr_t bytes);
+void* realloc(void* ptr, uintptr_t new_size);
+void* calloc(uintptr_t num, uintptr_t size);
 void free(void* ptr);
 
 #endif
