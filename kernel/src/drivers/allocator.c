@@ -57,6 +57,21 @@ static void _extend_address(MemoryHeader_t* header) {
 		// dropping extra headers is intentional, it enables avoiding a search
 		// in malloc and just appending to the end of the heap
 	} else {
+		if ((uintptr_t)next->next <= (uintptr_t)header) {
+			// this should never happen, corrupted heap...
+
+			// you fucked veeeeery up bad if you got here
+			// that or i've done something really dumb
+
+#ifdef DEBUG
+			fprintf(stderr, "Error: corrupted heap detected\n");
+			abort();
+#endif
+
+			// TODO: figure out what behaviour should be in release
+
+			return;
+		}
 		header->size = (uintptr_t)next->next
 			- (uintptr_t)header
 			- sizeof(MemoryHeader_t);
@@ -222,6 +237,7 @@ void* malloc(uintptr_t bytes) {
 		(MemoryHeader_t*)((uint8_t*)search + sizeof(MemoryHeader_t) + bytes);
 	fragment->size = remaining_space - sizeof(MemoryHeader_t);
 	fragment->next = search->next;
+	fragment->freed = 0;
 	free(_get_buffer_start(fragment));
 	
 	search->size = bytes;
