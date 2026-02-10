@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdalign.h>
 
 typedef struct MemoryHeader MemoryHeader_t;
 /**
@@ -11,7 +12,8 @@ typedef struct MemoryHeader MemoryHeader_t;
  * 
  * The compiler automatically adds padding between in_use and next to ensure
  * proper pointer alignment (4-byte on 32-bit ARM). We explicitly request
- * 8-byte alignment for optimal performance on ARM Cortex-M33 (RP2350).
+ * 8-byte alignment for optimal performance on ARM Cortex-M33 (RP2350)
+ * using C11 standard alignas.
  * 
  * Layout on 32-bit:
  *   size_t size;        [4 bytes, offset 0]
@@ -25,7 +27,7 @@ struct MemoryHeader {
 	size_t size;
 	bool in_use;
 	MemoryHeader_t* next;
-} __attribute__((aligned(8)));
+} alignas(8);
 
 void alloc_init(uint8_t* heap_start, size_t size);
 void alloc_free();
