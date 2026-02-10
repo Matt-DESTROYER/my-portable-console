@@ -1,10 +1,10 @@
 #include "allocator.h"
 
-static uint8_t* __heap_start = NULL;
-static size_t __heap_size;
+static uint8_t* _heap_start = NULL;
+static size_t _heap_size;
 
-static MemoryHeader_t* __heap_first = NULL;
-static MemoryHeader_t* __heap_last = NULL;
+static MemoryHeader_t* _heap_first = NULL;
+static MemoryHeader_t* _heap_last = NULL;
 
 /**
  * Get the memory block header corresponding to a data pointer.
@@ -30,7 +30,7 @@ static void __defragment_address(MemoryHeader_t* header) {
 	if (next->next == NULL) {
 		// this has to be the end, otherwise something has gone very wrong...
 		header->next = NULL;
-		__heap_last = header;
+		_heap_last = header;
 		// dropping extra headers is intentional, it enables avoiding a search
 		// in malloc and just appending to the end of the heap
 	} else {
@@ -57,29 +57,29 @@ void alloc_init(uint8_t* heap_start, size_t size) {
 	// just to filter out basic errors
 	if (heap_start == NULL || size < sizeof(MemoryHeader_t) * 4) return;
 
-	__heap_start = heap_start;
-	__heap_size = size;
+	_heap_start = heap_start;
+	_heap_size = size;
 
-	__heap_first = (MemoryHeader_t*)__heap_start;
-	__heap_first->size = 0;
-	__heap_first->in_use = true;
-	__heap_first->next = NULL;
-	__heap_last = __heap_first;
+	_heap_first = (MemoryHeader_t*)_heap_start;
+	_heap_first->size = 0;
+	_heap_first->in_use = true;
+	_heap_first->next = NULL;
+	_heap_last = _heap_first;
 }
 
 /**
  * Release all allocated heap blocks and reset the allocator state.
  *
  * Frees every MemoryHeader_t in the managed heap and sets internal allocator
- * globals (__heap_start, __heap_size, __heap_first, __heap_last) to indicate
+ * globals (_heap_start, _heap_size, _heap_first, _heap_last) to indicate
  * the heap is uninitialized. After this call, allocations will fail until
  * alloc_init is called again.
  */
 void alloc_free() {
-	__heap_start = NULL;
-	__heap_size = 0;
-	__heap_first = NULL;
-	__heap_last = NULL;
+	_heap_start = NULL;
+	_heap_size = 0;
+	_heap_first = NULL;
+	_heap_last = NULL;
 }
 
 /**
@@ -92,31 +92,34 @@ void alloc_free() {
  * uninitialized or no suitable block is available.
  */
 void* malloc(size_t bytes) {
-	if (__heap_start == NULL || bytes == 0) return NULL;
+	if (_heap_start == NULL || bytes == 0) return NULL;
 
 	// check if we have room to allocate memory
 	// at the end of the currently used heap
-	uintptr_t end_of_new_block = (uintptr_t)__heap_last
-		+ sizeof(MemoryHeader_t) + (uintptr_t)__heap_last->size
-		+ sizeof(MemoryHeader_t) + (uintptr_t)bytes;
-	if (end_of_new_block < (uintptr_t)__heap_start + (uintptr_t)__heap_size) {
-		__heap_last->next = (MemoryHeader_t*)(
-			(uint8_t*)__heap_last
-			+ __heap_last->size
+	uintptr_t heap_end =
+		(uintptr_t)_heap_last + sizeof(MemoryHeader_t) + _heap_last->size;
+	size_t new_block_size = sizeof(MemoryHeader_t) + bytes;
+	if (new_block_size > SIZE_MAX - heap_end) return NULL;
+
+	if (heap_end + new_block_size
+			< (uintptr_t)_heap_start + (uintptr_t)_heap_size) {
+		_heap_last->next = (MemoryHeader_t*)(
+			(uint8_t*)_heap_last
+			+ _heap_last->size
 			+ sizeof(MemoryHeader_t)
 		);
 
-		__heap_last = __heap_last->next;
+		_heap_last = _heap_last->next;
 
-		__heap_last->size = bytes;
-		__heap_last->in_use = true;
-		__heap_last->next = NULL;
+		_heap_last->size = bytes;
+		_heap_last->in_use = true;
+		_heap_last->next = NULL;
 
-		return (void*)(__heap_last + 1);
+		return (void*)(_heap_last + 1);
 	}
 
 	// search for an unused block
-	MemoryHeader_t* search = __heap_first;
+	MemoryHeader_t* search = _heap_first;
 	while (search != NULL &&
 			(search->in_use ||
 			bytes > search->size)) {
@@ -157,7 +160,7 @@ void* malloc(size_t bytes) {
 	fragment->size = remaining_space - sizeof(MemoryHeader_t);
 	fragment->in_use = false;
 	fragment->next = search->next;
-	if (fragment->next == NULL) __heap_last = fragment;
+	if (fragment->next == NULL) _heap_last = fragment;
 	
 	search->size = bytes;
 	search->next = fragment;
@@ -243,14 +246,14 @@ void free(void* ptr) {
  * Coalesces adjacent free blocks in the allocator's heap to reduce
  * fragmentation.
  *
- * Traverses the allocator's header list starting at __heap_first and merges
+ * Traverses the allocator's header list starting at _heap_first and merges
  * consecutive blocks that are not in use by increasing the earlier block's
  * size and updating next pointers; modifies the allocator's heap metadata.
  */
 static void __defragment_all() {
-	if (__heap_first == NULL) return;
+	if (_heap_first == NULL) return;
 
-	MemoryHeader_t* current = __heap_first;
+	MemoryHeader_t* current = _heap_first;
 	while (current->next != NULL) {
 		__defragment_address(current);
 		current = current->next;
