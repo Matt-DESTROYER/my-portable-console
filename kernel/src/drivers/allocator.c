@@ -242,6 +242,7 @@ void free(void* ptr) {
  * size and updating next pointers; modifies the allocator's heap metadata.
  */
 static void __defragment_all() {
+	if (__heap_first == NULL) return;
 	MemoryHeader_t* current = __heap_first;
 	while (current->next != NULL) {
 		__defragment_address(current);
