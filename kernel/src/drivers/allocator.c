@@ -54,6 +54,9 @@ static void __defragment_address(MemoryHeader_t* header) {
  * @param size Size of the heap region in bytes.
  */
 void alloc_init(uint8_t* heap_start, size_t size) {
+	// just to filter out basic errors
+	if (heap_start == NULL || size < sizeof(MemoryHeader_t) * 4) return;
+
 	__heap_start = heap_start;
 	__heap_size = size;
 
@@ -199,7 +202,6 @@ void* realloc(void* ptr, size_t new_size) {
  * the allocator is uninitialized or allocation fails.
  */
 void* calloc(size_t num, size_t size) {
-	if (__heap_start == NULL) return NULL;
 	if (num == 0 || size == 0) return NULL;
 
 	// prevent theoretical overflows (although there isn't anywhere near
@@ -230,8 +232,10 @@ void* calloc(size_t num, size_t size) {
  */
 void free(void* ptr) {
 	if (ptr == NULL) return;
+
 	MemoryHeader_t* header = __get_header(ptr);
 	header->in_use = false;
+
 	__defragment_address(header);
 }
 
@@ -245,6 +249,7 @@ void free(void* ptr) {
  */
 static void __defragment_all() {
 	if (__heap_first == NULL) return;
+
 	MemoryHeader_t* current = __heap_first;
 	while (current->next != NULL) {
 		__defragment_address(current);
