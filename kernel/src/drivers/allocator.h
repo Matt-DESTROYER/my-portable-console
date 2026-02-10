@@ -9,7 +9,8 @@
 #define ALIGN alignof(max_align_t)
 #define WORD_SIZE sizeof(size_t)
 
-#define MINIMUM_HEAP_SIZE 4
+#define MINIMUM_HEAP_SIZE  4
+#define MINIMUM_BLOCK_SIZE 4
 
 typedef struct MemoryHeader {
 	// alignas forces start address to be at an ALIGN byte boundary
