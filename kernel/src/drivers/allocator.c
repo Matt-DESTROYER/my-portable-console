@@ -6,6 +6,10 @@ static size_t _heap_size;
 static MemoryHeader_t* _heap_first = NULL;
 static MemoryHeader_t* _heap_last = NULL;
 
+static uintptr_t _align(uintptr_t size, size_t alignment) {
+	return (size + (ALIGN - 1)) & ~(ALIGN - 1);
+}
+
 /**
  * Get the memory block header corresponding to a data pointer.
  * @param ptr Data pointer that was returned to the caller (points to the
@@ -28,6 +32,11 @@ static uintptr_t _current_heap_end() {
 
 static void _defragment_address(MemoryHeader_t* header) {
 	if (header == NULL || header->in_use) return;
+	_extend_address(header);
+}
+
+static void _extend_address(MemoryHeader_t* header) {
+	if (header == NULL) return;
 	if (header->next == NULL || header->next->in_use) return;
 
 	MemoryHeader_t* next = header->next;
@@ -65,7 +74,7 @@ void alloc_init(uint8_t* heap_start, size_t size) {
 	// just to filter out basic errors
 	if (heap_start == NULL) return;
 
-	uintptr_t aligned_start = ((uintptr_t)heap_start + (ALIGN - 1)) & ~(ALIGN - 1);
+	uintptr_t aligned_start = _align((uintptr_t)(heap_start), ALIGN);
 	uintptr_t alignment_loss = aligned_start - (uintptr_t)heap_start;
 
 	if (size < alignment_loss + sizeof(MemoryHeader_t) * 4) return;
@@ -108,7 +117,7 @@ void* malloc(size_t bytes) {
 	if (_heap_start == NULL || bytes == 0) return NULL;
 
 	// make sure bytes is aligned (round up)
-	bytes = (bytes + (ALIGN - 1)) & ~(ALIGN - 1);
+	bytes = (size_t)_align(bytes, ALIGN);
 
 	// check if the last block is free, if so we can extend it
 	if (!_heap_last->in_use) {
@@ -215,29 +224,34 @@ void* malloc(size_t bytes) {
  * or `NULL` if allocation failed.
  */
 void* realloc(void* ptr, size_t new_size) {
-	MemoryHeader_t* old_header = _get_header(ptr);
+	if (ptr == NULL) return malloc(new_size);
+	if (new_size == 0) {
+		free(ptr);
+		return NULL;
+	}
 
-	// defragment in-case that gives us the space we need
-	old_header->in_use = false;
-	_defragment_address(old_header);
-	if (old_header->size > new_size) {
-		old_header->in_use = true;
+	MemoryHeader_t* old_header = _get_header(ptr);
+	// extend in case that gives us the space we need
+	_extend_address(old_header);
+	if (old_header->size >= new_size) {
 
 		// TODO: re-fragment extra space
 
 		return _get_buffer_start(old_header);
-	};
+	}
 
 	uint8_t* buffer = malloc(new_size);
-
-	if (ptr == NULL || buffer == NULL) return buffer;
+	if (buffer == NULL) return NULL;
 
 	// copy old data to new buffer
-	size_t memory_to_copy =
-		new_size > old_header->size ? old_header->size : new_size;
-	for (size_t i = 0; i < memory_to_copy; i++) {
+	size_t copy_size = old_header->size;
+	if (copy_size > new_size) copy_size = new_size;
+
+	for (size_t i = 0; i < copy_size; i++) {
 		buffer[i] = ((uint8_t*)ptr)[i];
 	}
+
+	free(ptr);
 
 	return buffer;
 }
