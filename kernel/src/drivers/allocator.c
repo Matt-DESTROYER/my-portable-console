@@ -22,11 +22,12 @@ static void __defragment_address(MemoryHeader_t* header) {
 	if (header->in_use) return;
 
 	MemoryHeader_t* next = header->next;
-	while (next->next != NULL || !next->next->in_use) {
+	while (next->next != NULL && !next->next->in_use) {
 		next = next->next;
 	}
 
-	if (next->next == NULL && next->next == __heap_last) {
+	if (next->next == NULL) {
+		// this has to be the end, otherwise something has gone very wrong...
 		uintptr_t space_before_header =
 			(uintptr_t)header - (uintptr_t)__heap_start;
 		header->size = (size_t)((uintptr_t)__heap_size
@@ -40,7 +41,7 @@ static void __defragment_address(MemoryHeader_t* header) {
 		header->next = next->next;
 	}
 
-	return header;
+	return;
 }
 
 /**
@@ -94,7 +95,7 @@ void* malloc(size_t bytes) {
 	// check if we have room to allocate memory
 	// at the end of the currently used heap
 	if ((uint8_t*)__heap_last + sizeof(MemoryHeader_t) + __heap_last->size
-			- __heap_start + bytes + sizeof(MemoryHeader_t) < __heap_size) {
+			+ bytes + sizeof(MemoryHeader_t) < __heap_size) {
 		__heap_last->next = (MemoryHeader_t*)(
 			(uint8_t*)__heap_last +
 			__heap_last->size +
@@ -131,10 +132,11 @@ void* malloc(size_t bytes) {
 	if (search == NULL) {
 		return NULL;
 	}
+	
+	search->in_use = true;
 
 	// already correct size
 	if (search->size == bytes) {
-		search->in_use = true;
 		return (void*)(search + 1);
 	}
 
@@ -142,7 +144,6 @@ void* malloc(size_t bytes) {
 	// + 4 bytes of data just consume the extra space
 	size_t remaining_space = search->size - bytes;
 	if (remaining_space < sizeof(MemoryHeader_t) + 4) {
-		search->in_use = true;
 		return (void*)(search + 1);
 	}
 
@@ -152,6 +153,8 @@ void* malloc(size_t bytes) {
 	fragment->size = remaining_space - sizeof(MemoryHeader_t);
 	fragment->in_use = false;
 	fragment->next = search->next;
+	
+	search->size = bytes;
 	search->next = fragment;
 
 	return (void*)(search + 1);
@@ -225,8 +228,9 @@ void* calloc(size_t num, size_t size) {
  */
 void free(void* ptr) {
 	if (ptr == NULL) return;
-	__get_header(ptr)->in_use = false;
-	__defragment_address(ptr);
+	MemoryHeader_t* header = __get_header(ptr);
+	header->in_use = false;
+	__defragment_address(header);
 }
 
 /**
