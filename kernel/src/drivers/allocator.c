@@ -83,7 +83,7 @@ void alloc_init(uint8_t* heap_start, uintptr_t size) {
 	uintptr_t aligned_start = _align((uintptr_t)heap_start, ALIGN);
 	uintptr_t alignment_loss = aligned_start - (uintptr_t)heap_start;
 
-	if (size < alignment_loss + sizeof(MemoryHeader_t) * 4) return;
+	if (size < alignment_loss + sizeof(MemoryHeader_t) + MINIMUM_HEAP_SIZE) return;
 
 	_heap_start = (uint8_t*)aligned_start;
 	_heap_size = size - alignment_loss;
@@ -202,9 +202,9 @@ void* malloc(uintptr_t bytes) {
 	}
 
 	// if the remaining space isn't even big enough for another header
-	// + 4 bytes of data just consume the extra space
+	// + `MINIMUM_HEAP_SIZE` bytes of data just consume the extra space
 	uintptr_t remaining_space = search->size - bytes;
-	if (remaining_space < sizeof(MemoryHeader_t) + 4) {
+	if (remaining_space < sizeof(MemoryHeader_t) + MINIMUM_HEAP_SIZE) {
 		return _get_buffer_start(search);
 	}
 
@@ -253,10 +253,10 @@ void* realloc(void* ptr, uintptr_t new_size) {
 	if (buffer == NULL) return NULL;
 
 	// copy old data to new buffer
-	size_t copy_size = old_header->size;
+	uintptr_t copy_size = old_header->size;
 	if (copy_size > new_size) copy_size = new_size;
 
-	for (size_t i = 0; i < copy_size; i++) {
+	for (uintptr_t i = 0; i < copy_size; i++) {
 		buffer[i] = ((uint8_t*)ptr)[i];
 	}
 
