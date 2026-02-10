@@ -317,7 +317,7 @@ void free(void* ptr) {
 	MemoryHeader_t* header = _get_header(ptr);
 	if (header->freed > 0) {
 #ifdef DEBUG
-		eprintf("Error: double free detected at %p", ptr);
+		fprintf(stderr, "Error: double free detected at %p\n", ptr);
 		abort();
 #endif
 		return;
