@@ -35,12 +35,27 @@ static void* _get_buffer_start(MemoryHeader_t* header) {
 	return (void*)(header + 1);
 }
 
+/**
+ * Compute the address immediately after the last block's usable data in the managed heap.
+ *
+ * @returns The byte address (as `uintptr_t`) one past the last block's data region; `0` if the allocator is uninitialized (`_heap_last` is `NULL`).
+ */
 static uintptr_t _current_heap_end() {
 	if (_heap_last == NULL) return 0;
 
 	return (uintptr_t)_heap_last + sizeof(MemoryHeader_t) + _heap_last->size;
 }
 
+/**
+ * Merge consecutive free blocks after `header` into `header`, enlarging its usable size.
+ *
+ * If the merged region reaches the end of the managed heap, `header->next` is set to NULL
+ * and the global `_heap_last` is updated to point to `header`. If a heap corruption is
+ * detected (invalid pointer ordering), a diagnostic is emitted and the process aborts in
+ * debug builds.
+ *
+ * @param header Header whose following free blocks should be absorbed; no action is taken if `header` is NULL or its immediate successor is not free.
+ */
 static void _extend_block(MemoryHeader_t* header) {
 	if (header == NULL) return;
 	if (header->next == NULL || !_is_free(header->next)) return;
@@ -81,6 +96,15 @@ static void _extend_block(MemoryHeader_t* header) {
 	return;
 }
 
+/**
+ * Ensure a free block is coalesced with adjacent free blocks and that the heap end sentinel is correct.
+ *
+ * If `header` refers to a free block, this will merge it with any following free blocks and update
+ * the allocator's end-of-heap marker when `header` becomes the last block. If `header` is NULL or
+ * not free, the function does nothing.
+ *
+ * @param header Pointer to the block header to defragment (must belong to this allocator).
+ */
 static void _defragment_block(MemoryHeader_t* header) {
 	if (header == NULL || !_is_free(header)) return;
 	if (header->next == NULL) {
@@ -90,6 +114,14 @@ static void _defragment_block(MemoryHeader_t* header) {
 	_extend_block(header);
 }
 
+/**
+ * Split a free memory block into a leading block of the requested size and a trailing free fragment when there is sufficient leftover space.
+ *
+ * If the header's size minus `size` is smaller than the space required for a new MemoryHeader_t plus MINIMUM_BLOCK_SIZE, no action is taken.
+ *
+ * @param header Pointer to the free block's header to be potentially split.
+ * @param size Requested size (in bytes) for the leading block; remaining bytes (if large enough) form a new free fragment.
+ */
 static void _fragment_block(MemoryHeader_t* header, uintptr_t size) {
 	if (size > header->size) return;
 	uintptr_t remaining_space = header->size - size;
@@ -157,11 +189,10 @@ void alloc_free() {
 /**
  * Allocate a contiguous block of memory from the custom heap.
  *
- * Allocates a block of at least `bytes` bytes from the allocator's managed
- * heap and returns a pointer to the start of the usable memory region.
- * @param bytes Number of bytes requested.
- * @return Pointer to the allocated memory region, or NULL if the heap is
- * uninitialized or no suitable block is available.
+ * Requests a block of at least `bytes` bytes from the allocator and returns
+ * a pointer to the start of the usable data region.
+ * @param bytes Number of bytes requested; value is rounded up to the allocator's alignment (ALIGN). A request of 0 returns NULL.
+ * @return Pointer to the start of the allocated usable memory, or NULL if the heap is uninitialized, `bytes` is zero, or no suitable block is available.
  */
 void* malloc(uintptr_t bytes) {
 	if (_heap_start == NULL || bytes == 0) return NULL;
@@ -251,14 +282,12 @@ void* malloc(uintptr_t bytes) {
 }
 
 /**
- * Resize an allocated memory block to a new size, preserving existing data up
- * to the smaller of the old and new sizes.
- * @param ptr Pointer to a previously allocated memory block (must be non-NULL
- * and returned by this allocator).
- * @param new_size New size in bytes for the allocation.
- * @returns Pointer to the newly allocated memory containing the copied data,
- * or `NULL` if allocation failed.
- */
+ * Resize an allocated memory block to hold at least `new_size` bytes, preserving existing data up to the smaller of the old and new sizes.
+ *
+ * If `ptr` is `NULL`, the call is equivalent to `malloc(new_size)`. If `new_size` is 0, the allocation is freed and `NULL` is returned. The requested size is rounded up to the allocator's alignment before allocation.
+ * @param ptr Pointer to a previously allocated memory block returned by this allocator, or `NULL`.
+ * @param new_size Desired size in bytes for the allocation.
+ * @returns Pointer to a memory region containing the original data (possibly relocated), or `NULL` if allocation failed or `new_size` was 0.
 void* realloc(void* ptr, uintptr_t new_size) {
 	if (ptr == NULL) return malloc(new_size);
 	if (new_size == 0) {
@@ -323,11 +352,17 @@ void* calloc(uintptr_t num, uintptr_t size) {
 }
 
 /**
- * Mark the memory block referenced by `ptr` as free.
+ * Release a previously allocated memory block back to the allocator.
+ *
+ * If the allocator is uninitialized or `ptr` is `NULL`, the call is a no-op.
+ * If the block has already been freed, a double-free is detected: in debug
+ * builds this prints an error and aborts; otherwise the call returns without
+ * modifying state. Otherwise the block's free counter is incremented (capped
+ * at `UINT8_MAX`) and the allocator attempts to coalesce adjacent free blocks.
  *
  * @param ptr Pointer to a data region previously returned by `malloc`,
- * `calloc`, or `realloc`. Behavior is undefined if `ptr` is `NULL` or was not
- * allocated by this allocator.
+ *            `calloc`, or `realloc`. Behavior is undefined if `ptr` was not
+ *            allocated by this allocator.
  */
 void free(void* ptr) {
 	if (_heap_start == NULL || ptr == NULL) return;
@@ -349,12 +384,11 @@ void free(void* ptr) {
 }
 
 /**
- * Coalesces adjacent free blocks in the allocator's heap to reduce
- * fragmentation.
+ * Coalesces adjacent free blocks in the allocator's heap to reduce fragmentation.
  *
- * Traverses the allocator's header list starting at _heap_first and merges
- * consecutive blocks that are not in use by increasing the earlier block's
- * size and updating next pointers; modifies the allocator's heap metadata.
+ * Iterates headers from the first managed block and merges consecutive freed
+ * blocks by increasing the earlier block's size and updating next pointers,
+ * keeping the allocator's heap metadata consistent.
  */
 static void _defragment_all() {
 	if (_heap_first == NULL) return;
