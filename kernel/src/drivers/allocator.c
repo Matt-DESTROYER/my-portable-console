@@ -328,7 +328,7 @@ void* calloc(uintptr_t num, uintptr_t size) {
  * allocated by this allocator.
  */
 void free(void* ptr) {
-	if (ptr == NULL) return;
+	if (_heap_start == NULL || ptr == NULL) return;
 	
 	MemoryHeader_t* header = _get_header(ptr);
 	if (header->freed > 0) {
@@ -362,4 +362,15 @@ static void _defragment_all() {
 		_defragment_address(current);
 		current = current->next;
 	}
+}
+
+void* memcpy(void* restrict dest, const void* restrict src, uintptr_t n) {
+	uint8_t* _dest = (uint8_t*)dest;
+	const uint8_t* _src = (const uint8_t*)src;
+
+	for (uintptr_t i = 0; i < n; i++) {
+		_dest[i] = _src[i];
+	}
+
+	return dest;
 }

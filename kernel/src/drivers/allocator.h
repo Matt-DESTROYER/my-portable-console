@@ -7,6 +7,7 @@
 #include <stdalign.h>
 
 #define ALIGN alignof(max_align_t)
+#define WORD_SIZE sizeof(size_t)
 
 #define MINIMUM_HEAP_SIZE 4
 
@@ -25,5 +26,7 @@ void* malloc(uintptr_t bytes);
 void* realloc(void* ptr, uintptr_t new_size);
 void* calloc(uintptr_t num, uintptr_t size);
 void free(void* ptr);
+
+void* memcpy(void* restrict dest, const void* restrict src, uintptr_t n);
 
 #endif
