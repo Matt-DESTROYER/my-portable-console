@@ -1,12 +1,17 @@
 #include "allocator.h"
 
+#ifdef DEBUG
+#include <stdlib.h>
+#include <stdio.h>
+#endif
+
 static uint8_t* _heap_start = NULL;
-static size_t _heap_size;
+static uintptr_t _heap_size;
 
 static MemoryHeader_t* _heap_first = NULL;
 static MemoryHeader_t* _heap_last = NULL;
 
-static uintptr_t _align(uintptr_t size, size_t alignment) {
+static uintptr_t _align(uintptr_t size, uintptr_t alignment) {
 	return (size + (alignment - 1)) & ~(alignment - 1);
 }
 
@@ -22,20 +27,26 @@ static MemoryHeader_t* _get_header(void* ptr) {
 	return (MemoryHeader_t*)ptr - 1;
 }
 
+static bool _is_free(MemoryHeader_t* header) {
+	return header->freed != 0;
+}
+
 static void* _get_buffer_start(MemoryHeader_t* header) {
 	return (void*)(header + 1);
 }
 
 static uintptr_t _current_heap_end() {
+	if (_heap_last == NULL) return 0;
+
 	return (uintptr_t)_heap_last + sizeof(MemoryHeader_t) + _heap_last->size;
 }
 
 static void _extend_address(MemoryHeader_t* header) {
 	if (header == NULL) return;
-	if (header->next == NULL || header->next->in_use) return;
+	if (header->next == NULL || !_is_free(header->next)) return;
 
 	MemoryHeader_t* next = header->next;
-	while (next->next != NULL && !next->next->in_use) {
+	while (next->next != NULL && _is_free(next->next)) {
 		next = next->next;
 	}
 
@@ -46,6 +57,21 @@ static void _extend_address(MemoryHeader_t* header) {
 		// dropping extra headers is intentional, it enables avoiding a search
 		// in malloc and just appending to the end of the heap
 	} else {
+		if ((uintptr_t)next->next <= (uintptr_t)header) {
+			// this should never happen, corrupted heap...
+
+			// you fucked veeeeery up bad if you got here
+			// that or i've done something really dumb
+
+#ifdef DEBUG
+			fprintf(stderr, "Error: corrupted heap detected\n");
+			abort();
+#endif
+
+			// TODO: figure out what behaviour should be in release
+
+			return;
+		}
 		header->size = (uintptr_t)next->next
 			- (uintptr_t)header
 			- sizeof(MemoryHeader_t);
@@ -56,7 +82,11 @@ static void _extend_address(MemoryHeader_t* header) {
 }
 
 static void _defragment_address(MemoryHeader_t* header) {
-	if (header == NULL || header->in_use) return;
+	if (header == NULL || !_is_free(header)) return;
+	if (header->next == NULL) {
+		_heap_last = header;
+		return;
+	}
 	_extend_address(header);
 }
 
@@ -70,21 +100,21 @@ static void _defragment_address(MemoryHeader_t* header) {
  * @param heap_start Pointer to the start of the heap memory region to manage.
  * @param size Size of the heap region in bytes.
  */
-void alloc_init(uint8_t* heap_start, size_t size) {
+void alloc_init(uint8_t* heap_start, uintptr_t size) {
 	// just to filter out basic errors
 	if (heap_start == NULL) return;
 
 	uintptr_t aligned_start = _align((uintptr_t)heap_start, ALIGN);
 	uintptr_t alignment_loss = aligned_start - (uintptr_t)heap_start;
 
-	if (size < alignment_loss + sizeof(MemoryHeader_t) * 4) return;
+	if (size < alignment_loss + sizeof(MemoryHeader_t) + MINIMUM_HEAP_SIZE) return;
 
 	_heap_start = (uint8_t*)aligned_start;
 	_heap_size = size - alignment_loss;
 
 	_heap_first = (MemoryHeader_t*)_heap_start;
 	_heap_first->size = 0;
-	_heap_first->in_use = true;
+	_heap_first->freed = 0;
 	_heap_first->next = NULL;
 	_heap_last = _heap_first;
 }
@@ -113,29 +143,29 @@ void alloc_free() {
  * @return Pointer to the allocated memory region, or NULL if the heap is
  * uninitialized or no suitable block is available.
  */
-void* malloc(size_t bytes) {
+void* malloc(uintptr_t bytes) {
 	if (_heap_start == NULL || bytes == 0) return NULL;
 
 	// make sure bytes is aligned (round up)
-	bytes = (size_t)_align(bytes, ALIGN);
+	bytes = _align(bytes, ALIGN);
 
 	// check if the last block is free, if so we can extend it
-	if (!_heap_last->in_use) {
+	if (_is_free(_heap_last)) {
 		if (_heap_last->size >= bytes) {
 			_heap_last->size = bytes;
-			_heap_last->in_use = true;
+			_heap_last->freed = 0;
 			return _get_buffer_start(_heap_last);
 		}
 
 		uintptr_t space_needed = bytes - _heap_last->size;
 		uintptr_t heap_end = _current_heap_end();
-		if (space_needed > SIZE_MAX - heap_end) return NULL;
+		if (space_needed > UINTPTR_MAX - heap_end) return NULL;
 
 		// make sure there's enough space to extend
 		if (heap_end + space_needed
-				<= (uintptr_t)_heap_start + (uintptr_t)_heap_size) {
+				<= (uintptr_t)_heap_start + _heap_size) {
 			_heap_last->size = bytes;
-			_heap_last->in_use = true;
+			_heap_last->freed = 0;
 			return _get_buffer_start(_heap_last);
 		}
 
@@ -146,11 +176,11 @@ void* malloc(size_t bytes) {
 	// at the end of the currently used heap
 	// (quicker than searching, so this is prioritised)
 	uintptr_t heap_end = _current_heap_end();
-	size_t new_block_size = sizeof(MemoryHeader_t) + bytes;
-	if (new_block_size > SIZE_MAX - heap_end) return NULL;
+	uintptr_t new_block_size = sizeof(MemoryHeader_t) + bytes;
+	if (new_block_size > UINTPTR_MAX - heap_end) return NULL;
 
 	if (heap_end + new_block_size
-			<= (uintptr_t)_heap_start + (uintptr_t)_heap_size) {
+			<= (uintptr_t)_heap_start + _heap_size) {
 		_heap_last->next = (MemoryHeader_t*)(
 			(uint8_t*)_heap_last
 			+ _heap_last->size
@@ -160,7 +190,7 @@ void* malloc(size_t bytes) {
 		_heap_last = _heap_last->next;
 
 		_heap_last->size = bytes;
-		_heap_last->in_use = true;
+		_heap_last->freed = 0;
 		_heap_last->next = NULL;
 
 		return _get_buffer_start(_heap_last);
@@ -169,11 +199,11 @@ void* malloc(size_t bytes) {
 	// search for an unused block
 	MemoryHeader_t* search = _heap_first;
 	while (search != NULL &&
-			(search->in_use ||
+			(!_is_free(search) ||
 			bytes > search->size)) {
 		// if possible, defragment
 		MemoryHeader_t* next = search->next;
-		if (next != NULL && !search->in_use && !next->in_use) {
+		if (next != NULL && _is_free(search) && _is_free(next)) {
 			_defragment_address(search);
 
 			// if the defragmented block is now large enough
@@ -188,7 +218,7 @@ void* malloc(size_t bytes) {
 		return NULL;
 	}
 	
-	search->in_use = true;
+	search->freed = 0;
 
 	// already correct size
 	if (search->size == bytes) {
@@ -196,9 +226,9 @@ void* malloc(size_t bytes) {
 	}
 
 	// if the remaining space isn't even big enough for another header
-	// + 4 bytes of data just consume the extra space
-	size_t remaining_space = search->size - bytes;
-	if (remaining_space < sizeof(MemoryHeader_t) + 4) {
+	// + `MINIMUM_HEAP_SIZE` bytes of data just consume the extra space
+	uintptr_t remaining_space = search->size - bytes;
+	if (remaining_space < sizeof(MemoryHeader_t) + MINIMUM_HEAP_SIZE) {
 		return _get_buffer_start(search);
 	}
 
@@ -206,9 +236,9 @@ void* malloc(size_t bytes) {
 	MemoryHeader_t* fragment =
 		(MemoryHeader_t*)((uint8_t*)search + sizeof(MemoryHeader_t) + bytes);
 	fragment->size = remaining_space - sizeof(MemoryHeader_t);
-	fragment->in_use = false;
 	fragment->next = search->next;
-	if (fragment->next == NULL) _heap_last = fragment;
+	fragment->freed = 0;
+	free(_get_buffer_start(fragment));
 	
 	search->size = bytes;
 	search->next = fragment;
@@ -225,12 +255,14 @@ void* malloc(size_t bytes) {
  * @returns Pointer to the newly allocated memory containing the copied data,
  * or `NULL` if allocation failed.
  */
-void* realloc(void* ptr, size_t new_size) {
+void* realloc(void* ptr, uintptr_t new_size) {
 	if (ptr == NULL) return malloc(new_size);
 	if (new_size == 0) {
 		free(ptr);
 		return NULL;
 	}
+
+	new_size = _align(new_size, ALIGN);
 
 	MemoryHeader_t* old_header = _get_header(ptr);
 	// extend in case that gives us the space we need
@@ -246,10 +278,10 @@ void* realloc(void* ptr, size_t new_size) {
 	if (buffer == NULL) return NULL;
 
 	// copy old data to new buffer
-	size_t copy_size = old_header->size;
+	uintptr_t copy_size = old_header->size;
 	if (copy_size > new_size) copy_size = new_size;
 
-	for (size_t i = 0; i < copy_size; i++) {
+	for (uintptr_t i = 0; i < copy_size; i++) {
 		buffer[i] = ((uint8_t*)ptr)[i];
 	}
 
@@ -266,22 +298,22 @@ void* realloc(void* ptr, size_t new_size) {
  * @returns Pointer to the allocated, zero-initialized memory, or `NULL` if
  * the allocator is uninitialized or allocation fails.
  */
-void* calloc(size_t num, size_t size) {
+void* calloc(uintptr_t num, uintptr_t size) {
 	if (num == 0 || size == 0) return NULL;
 
 	// prevent theoretical overflows (although there isn't anywhere near
 	// enough memory so if you're overflowing something is very wrong)
-	if (num > SIZE_MAX / size) {
+	if (num > UINTPTR_MAX / size) {
 		return NULL;
 	}
 
-	size_t total_bytes = num * size;
+	uintptr_t total_bytes = num * size;
 
 	uint8_t* buffer = (uint8_t*)malloc(total_bytes);
 	if (buffer == NULL) return NULL;
 
 	// zero the memory
-	for (size_t i = 0; i < total_bytes; i++) {
+	for (uintptr_t i = 0; i < total_bytes; i++) {
 		buffer[i] = 0;
 	}
 
@@ -296,10 +328,20 @@ void* calloc(size_t num, size_t size) {
  * allocated by this allocator.
  */
 void free(void* ptr) {
-	if (ptr == NULL) return;
-
+	if (_heap_start == NULL || ptr == NULL) return;
+	
 	MemoryHeader_t* header = _get_header(ptr);
-	header->in_use = false;
+	if (header->freed > 0) {
+#ifdef DEBUG
+		fprintf(stderr, "Error: double free detected at %p\n", ptr);
+		abort();
+#endif
+		return;
+	}
+
+	if (header->freed < UINT8_MAX) {
+		header->freed++;
+	}
 
 	_defragment_address(header);
 }
@@ -320,4 +362,15 @@ static void _defragment_all() {
 		_defragment_address(current);
 		current = current->next;
 	}
+}
+
+void* memcpy(void* restrict dest, const void* restrict src, uintptr_t n) {
+	uint8_t* _dest = (uint8_t*)dest;
+	const uint8_t* _src = (const uint8_t*)src;
+
+	for (uintptr_t i = 0; i < n; i++) {
+		_dest[i] = _src[i];
+	}
+
+	return dest;
 }
