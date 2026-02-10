@@ -29,12 +29,8 @@ static void __defragment_address(MemoryHeader_t* header) {
 
 	if (next->next == NULL) {
 		// this has to be the end, otherwise something has gone very wrong...
-		uintptr_t space_before_header =
-			(uintptr_t)header - (uintptr_t)__heap_start;
-		header->size = (size_t)((uintptr_t)__heap_size
-			- space_before_header
-			- (uintptr_t)sizeof(MemoryHeader_t));
 		header->next = NULL;
+		__heap_last = header;
 	} else {
 		header->size = (uintptr_t)next->next
 			- (uintptr_t)header
@@ -91,7 +87,7 @@ void alloc_free() {
  * uninitialized or no suitable block is available.
  */
 void* malloc(size_t bytes) {
-	if (__heap_start == NULL) return NULL;
+	if (__heap_start == NULL || bytes == 0) return NULL;
 
 	// check if we have room to allocate memory
 	// at the end of the currently used heap
@@ -99,8 +95,11 @@ void* malloc(size_t bytes) {
 		+ sizeof(MemoryHeader_t) + (uintptr_t)__heap_last->size
 		+ sizeof(MemoryHeader_t) + (uintptr_t)bytes;
 	if (end_of_new_block < (uintptr_t)__heap_start + (uintptr_t)__heap_size) {
-		__heap_last->next = 
-			__heap_last + __heap_last->size + sizeof(MemoryHeader_t);
+		__heap_last->next = (MemoryHeader_t*)(
+			(uint8_t*)__heap_last
+			+ __heap_last->size
+			+ sizeof(MemoryHeader_t)
+		);
 
 		__heap_last = __heap_last->next;
 
@@ -153,6 +152,7 @@ void* malloc(size_t bytes) {
 	fragment->size = remaining_space - sizeof(MemoryHeader_t);
 	fragment->in_use = false;
 	fragment->next = search->next;
+	if (fragment->next == NULL) __heap_last = fragment;
 	
 	search->size = bytes;
 	search->next = fragment;
