@@ -9,8 +9,8 @@
 #define ALIGN alignof(max_align_t)
 
 typedef struct MemoryHeader {
-	// alignas forces start address to be at an 8 byte boundary
-	// and the total size to be a multiple of 8
+	// alignas forces start address to be at an ALIGN byte boundary
+	// and the total struct size to be a multiple of ALIGN
 	alignas(ALIGN) size_t size;
 	struct MemoryHeader* next;
 	bool in_use;

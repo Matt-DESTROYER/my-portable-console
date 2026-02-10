@@ -7,7 +7,7 @@ static MemoryHeader_t* _heap_first = NULL;
 static MemoryHeader_t* _heap_last = NULL;
 
 static uintptr_t _align(uintptr_t size, size_t alignment) {
-	return (size + (ALIGN - 1)) & ~(ALIGN - 1);
+	return (size + (alignment - 1)) & ~(alignment - 1);
 }
 
 /**
@@ -28,11 +28,6 @@ static void* _get_buffer_start(MemoryHeader_t* header) {
 
 static uintptr_t _current_heap_end() {
 	return (uintptr_t)_heap_last + sizeof(MemoryHeader_t) + _heap_last->size;
-}
-
-static void _defragment_address(MemoryHeader_t* header) {
-	if (header == NULL || header->in_use) return;
-	_extend_address(header);
 }
 
 static void _extend_address(MemoryHeader_t* header) {
@@ -60,6 +55,11 @@ static void _extend_address(MemoryHeader_t* header) {
 	return;
 }
 
+static void _defragment_address(MemoryHeader_t* header) {
+	if (header == NULL || header->in_use) return;
+	_extend_address(header);
+}
+
 /**
  * Initialize the allocator to manage a contiguous heap region.
  *
@@ -74,12 +74,12 @@ void alloc_init(uint8_t* heap_start, size_t size) {
 	// just to filter out basic errors
 	if (heap_start == NULL) return;
 
-	uintptr_t aligned_start = _align((uintptr_t)(heap_start), ALIGN);
+	uintptr_t aligned_start = _align((uintptr_t)heap_start, ALIGN);
 	uintptr_t alignment_loss = aligned_start - (uintptr_t)heap_start;
 
 	if (size < alignment_loss + sizeof(MemoryHeader_t) * 4) return;
 
-	_heap_start = aligned_start;
+	_heap_start = (uint8_t*)aligned_start;
 	_heap_size = size - alignment_loss;
 
 	_heap_first = (MemoryHeader_t*)_heap_start;
@@ -123,6 +123,7 @@ void* malloc(size_t bytes) {
 	if (!_heap_last->in_use) {
 		if (_heap_last->size >= bytes) {
 			_heap_last->size = bytes;
+			_heap_first->in_use = true;
 			return _get_buffer_start(_heap_last);
 		}
 
@@ -134,6 +135,7 @@ void* malloc(size_t bytes) {
 		if (heap_end + space_needed
 				<= (uintptr_t)_heap_start + (uintptr_t)_heap_size) {
 			_heap_last->size = bytes;
+			_heap_last->in_use = true;
 			return _get_buffer_start(_heap_last);
 		}
 
