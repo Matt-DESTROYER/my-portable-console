@@ -18,13 +18,17 @@ static MemoryHeader_t* _get_header(void* ptr) {
 	return (MemoryHeader_t*)ptr - 1;
 }
 
+static void* _get_buffer_start(MemoryHeader_t* header) {
+	return (void*)(header + 1);
+}
+
 static uintptr_t _current_heap_end() {
 	return (uintptr_t)_heap_last + sizeof(MemoryHeader_t) + _heap_last->size;
 }
 
 static void _defragment_address(MemoryHeader_t* header) {
 	if (header == NULL || header->in_use) return;
-	if (header->next == NULL) return;
+	if (header->next == NULL || header->next->in_use) return;
 
 	MemoryHeader_t* next = header->next;
 	while (next->next != NULL && !next->next->in_use) {
@@ -110,7 +114,7 @@ void* malloc(size_t bytes) {
 	if (!_heap_last->in_use) {
 		if (_heap_last->size >= bytes) {
 			_heap_last->size = bytes;
-			return (void*)(_heap_last + 1);
+			return _get_buffer_start(_heap_last);
 		}
 
 		uintptr_t space_needed = bytes - _heap_last->size;
@@ -121,7 +125,7 @@ void* malloc(size_t bytes) {
 		if (heap_end + space_needed
 				<= (uintptr_t)_heap_start + (uintptr_t)_heap_size) {
 			_heap_last->size = bytes;
-			return (void*)(_heap_last + 1);
+			return _get_buffer_start(_heap_last);
 		}
 
 		// otherwise just fall through and continue as normal
@@ -148,7 +152,7 @@ void* malloc(size_t bytes) {
 		_heap_last->in_use = true;
 		_heap_last->next = NULL;
 
-		return (void*)(_heap_last + 1);
+		return _get_buffer_start(_heap_last);
 	}
 
 	// search for an unused block
@@ -177,14 +181,14 @@ void* malloc(size_t bytes) {
 
 	// already correct size
 	if (search->size == bytes) {
-		return (void*)(search + 1);
+		return _get_buffer_start(search);
 	}
 
 	// if the remaining space isn't even big enough for another header
 	// + 4 bytes of data just consume the extra space
 	size_t remaining_space = search->size - bytes;
 	if (remaining_space < sizeof(MemoryHeader_t) + 4) {
-		return (void*)(search + 1);
+		return _get_buffer_start(search);
 	}
 
 	// otherwise fragment to leave extra space free
@@ -198,7 +202,7 @@ void* malloc(size_t bytes) {
 	search->size = bytes;
 	search->next = fragment;
 
-	return (void*)(search + 1);
+	return _get_buffer_start(search);
 }
 
 /**
@@ -211,11 +215,22 @@ void* malloc(size_t bytes) {
  * or `NULL` if allocation failed.
  */
 void* realloc(void* ptr, size_t new_size) {
+	MemoryHeader_t* old_header = _get_header(ptr);
+
+	// defragment in-case that gives us the space we need
+	old_header->in_use = false;
+	_defragment_address(old_header);
+	if (old_header->size > new_size) {
+		old_header->in_use = true;
+
+		// TODO: re-fragment extra space
+
+		return;
+	};
+
 	uint8_t* buffer = malloc(new_size);
 
 	if (ptr == NULL || buffer == NULL) return buffer;
-
-	MemoryHeader_t* old_header = _get_header(ptr);
 
 	// copy old data to new buffer
 	size_t memory_to_copy =
@@ -223,8 +238,6 @@ void* realloc(void* ptr, size_t new_size) {
 	for (size_t i = 0; i < memory_to_copy; i++) {
 		buffer[i] = ((uint8_t*)ptr)[i];
 	}
-
-	free(ptr);
 
 	return buffer;
 }
