@@ -59,10 +59,15 @@ static void _defragment_address(MemoryHeader_t* header) {
  */
 void alloc_init(uint8_t* heap_start, size_t size) {
 	// just to filter out basic errors
-	if (heap_start == NULL || size < sizeof(MemoryHeader_t) * 4) return;
+	if (heap_start == NULL) return;
 
-	_heap_start = heap_start;
-	_heap_size = size;
+	uintptr_t aligned_start = ((uintptr_t)heap_start + (ALIGN - 1)) & ~(ALIGN - 1);
+	uintptr_t alignment_loss = aligned_start - (uintptr_t)heap_start;
+
+	if (size < alignment_loss + sizeof(MemoryHeader_t) * 4) return;
+
+	_heap_start = aligned_start;
+	_heap_size = size - alignment_loss;
 
 	_heap_first = (MemoryHeader_t*)_heap_start;
 	_heap_first->size = 0;
