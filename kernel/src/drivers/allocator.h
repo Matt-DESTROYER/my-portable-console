@@ -4,13 +4,17 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdalign.h>
 
-typedef struct MemoryHeader MemoryHeader_t;
-struct MemoryHeader {
-	size_t size;
+#define ALIGN alignof(max_align_t)
+
+typedef struct MemoryHeader {
+	// alignas forces start address to be at an ALIGN byte boundary
+	// and the total struct size to be a multiple of ALIGN
+	alignas(ALIGN) size_t size;
+	struct MemoryHeader* next;
 	bool in_use;
-	MemoryHeader_t* next;
-};
+} MemoryHeader_t;
 
 void alloc_init(uint8_t* heap_start, size_t size);
 void alloc_free();
