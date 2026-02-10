@@ -91,6 +91,7 @@ static void _defragment_block(MemoryHeader_t* header) {
 }
 
 static void _fragment_block(MemoryHeader_t* header, uintptr_t size) {
+	if (size > header->size) return;
 	uintptr_t remaining_space = header->size - size;
 	// if there isn't enough space for anything really
 	if (remaining_space < sizeof(MemoryHeader_t) + MINIMUM_BLOCK_SIZE) {
