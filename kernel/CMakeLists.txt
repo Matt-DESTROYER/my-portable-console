@@ -41,13 +41,11 @@ pico_sdk_init()
 
 # --- SOURCE ---
 add_executable(my_console
-	src/drivers/pins.c
-	src/drivers/allocator.c
-	src/drivers/memory.c
 	src/drivers/graphics/lcd.c
 	src/drivers/graphics/os.c
-	src/drivers/sd_card.c
 	src/drivers/buttons.c
+	src/drivers/pins.c
+	src/drivers/sd_card.c
 	src/main.c
 )
 
