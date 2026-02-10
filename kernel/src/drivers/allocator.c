@@ -126,7 +126,7 @@ void* malloc(uintptr_t bytes) {
 	bytes = _align(bytes, ALIGN);
 
 	// check if the last block is free, if so we can extend it
-	if (_is_free(_heap_last->freed)) {
+	if (_is_free(_heap_last)) {
 		if (_heap_last->size >= bytes) {
 			_heap_last->size = bytes;
 			_heap_last->freed = 0;
@@ -179,7 +179,7 @@ void* malloc(uintptr_t bytes) {
 			bytes > search->size)) {
 		// if possible, defragment
 		MemoryHeader_t* next = search->next;
-		if (next != NULL && _is_free(search) && _is_free(next->freed)) {
+		if (next != NULL && _is_free(search) && _is_free(next)) {
 			_defragment_address(search);
 
 			// if the defragmented block is now large enough
@@ -212,9 +212,8 @@ void* malloc(uintptr_t bytes) {
 	MemoryHeader_t* fragment =
 		(MemoryHeader_t*)((uint8_t*)search + sizeof(MemoryHeader_t) + bytes);
 	fragment->size = remaining_space - sizeof(MemoryHeader_t);
-	fragment->freed++;
 	fragment->next = search->next;
-	if (fragment->next == NULL) _heap_last = fragment;
+	free(fragment);
 	
 	search->size = bytes;
 	search->next = fragment;
@@ -305,9 +304,15 @@ void* calloc(uintptr_t num, uintptr_t size) {
  */
 void free(void* ptr) {
 	if (ptr == NULL) return;
-
+	
 	MemoryHeader_t* header = _get_header(ptr);
-	header->freed++;
+	if (header->freed > 0) {
+		// TODO: some kind of silent error...
+	}
+
+	if (header->freed < UINT8_MAX) {
+		header->freed++;
+	}
 
 	_defragment_address(header);
 }
