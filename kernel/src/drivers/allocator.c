@@ -1,5 +1,10 @@
 #include "allocator.h"
 
+#ifdef DEBUG
+#include <stdlib.h>
+#include <stdio.h>
+#endif
+
 static uint8_t* _heap_start = NULL;
 static uintptr_t _heap_size;
 
@@ -38,7 +43,7 @@ static uintptr_t _current_heap_end() {
 
 static void _extend_address(MemoryHeader_t* header) {
 	if (header == NULL) return;
-	if (header->next == NULL || _is_free(header->next)) return;
+	if (header->next == NULL || !_is_free(header->next)) return;
 
 	MemoryHeader_t* next = header->next;
 	while (next->next != NULL && _is_free(next->next)) {
@@ -62,7 +67,11 @@ static void _extend_address(MemoryHeader_t* header) {
 }
 
 static void _defragment_address(MemoryHeader_t* header) {
-	if (header == NULL || _is_free(header)) return;
+	if (header == NULL || !_is_free(header)) return;
+	if (header->next == NULL) {
+		_heap_last = header;
+		return;
+	}
 	_extend_address(header);
 }
 
@@ -213,7 +222,7 @@ void* malloc(uintptr_t bytes) {
 		(MemoryHeader_t*)((uint8_t*)search + sizeof(MemoryHeader_t) + bytes);
 	fragment->size = remaining_space - sizeof(MemoryHeader_t);
 	fragment->next = search->next;
-	free(fragment);
+	free(_get_buffer_start(fragment));
 	
 	search->size = bytes;
 	search->next = fragment;
@@ -307,7 +316,11 @@ void free(void* ptr) {
 	
 	MemoryHeader_t* header = _get_header(ptr);
 	if (header->freed > 0) {
-		// TODO: some kind of silent error...
+#ifdef DEBUG
+		eprintf("Error: double free detected at %p", ptr);
+		abort();
+#endif
+		return;
 	}
 
 	if (header->freed < UINT8_MAX) {
