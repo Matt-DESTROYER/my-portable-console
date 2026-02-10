@@ -19,7 +19,8 @@ static MemoryHeader_t* __get_header(void* ptr) {
 }
 
 static void __defragment_address(MemoryHeader_t* header) {
-	if (header->in_use) return;
+	if (header == NULL || header->in_use) return;
+	if (header->next == NULL) return;
 
 	MemoryHeader_t* next = header->next;
 	while (next->next != NULL && !next->next->in_use) {
@@ -94,13 +95,12 @@ void* malloc(size_t bytes) {
 
 	// check if we have room to allocate memory
 	// at the end of the currently used heap
-	if ((uint8_t*)__heap_last + sizeof(MemoryHeader_t) + __heap_last->size
-			+ bytes + sizeof(MemoryHeader_t) < __heap_size) {
-		__heap_last->next = (MemoryHeader_t*)(
-			(uint8_t*)__heap_last +
-			__heap_last->size +
-			sizeof(MemoryHeader_t)
-		);
+	uintptr_t end_of_new_block = (uintptr_t)__heap_last
+		+ sizeof(MemoryHeader_t) + (uintptr_t)__heap_last->size
+		+ sizeof(MemoryHeader_t) + (uintptr_t)bytes;
+	if (end_of_new_block < (uintptr_t)__heap_start + (uintptr_t)__heap_size) {
+		__heap_last->next = 
+			__heap_last + __heap_last->size + sizeof(MemoryHeader_t);
 
 		__heap_last = __heap_last->next;
 
