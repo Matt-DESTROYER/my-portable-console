@@ -144,7 +144,7 @@ void* malloc(uintptr_t bytes) {
 
 		uintptr_t space_needed = bytes - _heap_last->size;
 		uintptr_t heap_end = _current_heap_end();
-		if (space_needed > SIZE_MAX - heap_end) return NULL;
+		if (space_needed > UINTPTR_MAX - heap_end) return NULL;
 
 		// make sure there's enough space to extend
 		if (heap_end + space_needed
@@ -162,7 +162,7 @@ void* malloc(uintptr_t bytes) {
 	// (quicker than searching, so this is prioritised)
 	uintptr_t heap_end = _current_heap_end();
 	uintptr_t new_block_size = sizeof(MemoryHeader_t) + bytes;
-	if (new_block_size > SIZE_MAX - heap_end) return NULL;
+	if (new_block_size > UINTPTR_MAX - heap_end) return NULL;
 
 	if (heap_end + new_block_size
 			<= (uintptr_t)_heap_start + _heap_size) {
@@ -287,7 +287,7 @@ void* calloc(uintptr_t num, uintptr_t size) {
 
 	// prevent theoretical overflows (although there isn't anywhere near
 	// enough memory so if you're overflowing something is very wrong)
-	if (num > SIZE_MAX / size) {
+	if (num > UINTPTR_MAX / size) {
 		return NULL;
 	}
 
