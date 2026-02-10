@@ -28,9 +28,9 @@ int main() {
 
 	spi_init(SPI_PORT, DEFAULT_MHZ); // 62.5 MHz
 
-    gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
+	gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
+	gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
+	gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
 
 	pin_init(PIN_CS);
 	pin_init(PIN_DC);
@@ -39,44 +39,44 @@ int main() {
 	buttons_init();
 	lcd_init();
 
-    alloc_init(heap_start(), total_free_bytes());
+	alloc_init(heap_start(), total_free_bytes());
 
 	int selected_app = 0;
-    int total_apps = 3;
-    bool update_screen = true;
-    draw_menu();
-    while (1) {
-        if (button_pressed(PIN_BTN_UP)) {
-            selected_app--;
-            if (selected_app < 0) {
-                selected_app = total_apps - 1;
-            }
-            update_screen = true;
-            sleep_ms(150);
-        }
+	int total_apps = 3;
+	bool update_screen = true;
+	draw_menu();
+	while (1) {
+		if (button_pressed(PIN_BTN_UP)) {
+			selected_app--;
+			if (selected_app < 0) {
+				selected_app = total_apps - 1;
+			}
+			update_screen = true;
+			sleep_ms(150);
+		}
 
-        if (button_pressed(PIN_BTN_DOWN)) {
-            selected_app++;
-            if (selected_app >= total_apps) {
-                selected_app = 0;
-            }
-            update_screen = true;
-            sleep_ms(150);
-        }
+		if (button_pressed(PIN_BTN_DOWN)) {
+			selected_app++;
+			if (selected_app >= total_apps) {
+				selected_app = 0;
+			}
+			update_screen = true;
+			sleep_ms(150);
+		}
 
-        if (button_pressed(PIN_BTN_OK)) {
-            lcd_fill_rect(0, 0, 240, 320, GREEN);
-            sleep_ms(200);
-            draw_menu();
-            update_screen = true;
-            sleep_ms(200);
-        }
+		if (button_pressed(PIN_BTN_OK)) {
+			lcd_fill_rect(0, 0, 240, 320, GREEN);
+			sleep_ms(200);
+			draw_menu();
+			update_screen = true;
+			sleep_ms(200);
+		}
 
-        if (update_screen) {
-            draw_menu_item(60,  0, (selected_app == 0));
-            draw_menu_item(110, 1, (selected_app == 1));
-            draw_menu_item(160, 2, (selected_app == 2));
-            update_screen = false;
-        }
-    }
+		if (update_screen) {
+			draw_menu_item(60,  0, (selected_app == 0));
+			draw_menu_item(110, 1, (selected_app == 1));
+			draw_menu_item(160, 2, (selected_app == 2));
+			update_screen = false;
+		}
+	}
 }

@@ -12,7 +12,7 @@ static MemoryHeader_t* __heap_last = NULL;
  * @returns Pointer to the MemoryHeader_t stored immediately before `ptr`.
  * If `ptr` is NULL or not a pointer returned by this allocator, the behavior is undefined.
  */
-MemoryHeader_t* __get_header(void* ptr) {
+static MemoryHeader_t* __get_header(void* ptr) {
 	return (MemoryHeader_t*)ptr - 1;
 }
 
@@ -198,7 +198,7 @@ void free(void* ptr) {
  * consecutive blocks that are not in use by increasing the earlier block's
  * size and updating next pointers; modifies the allocator's heap metadata.
  */
-void __defragment() {
+static void __defragment() {
 	MemoryHeader_t* current = __heap_first;
 	MemoryHeader_t* next = current->next;
 	while (current->next != NULL) {
