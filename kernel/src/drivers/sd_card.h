@@ -1,11 +1,13 @@
 #ifndef KERNEL_SD_CARD_H
 #define KERNEL_SD_CARD_H
 
-#include <stdint.h>
-#include <stdbool.h>
+#include "pico/stdlib.h"
 
-bool test_sd_card();
-bool sd_init();
-bool sd_read_sector(uint32_t sector, uint8_t* buffer);
+typedef enum CommandType {
+	BC,  // broadcast (no response)
+	BCR, // broadcast (with) response
+	AC,  // addressed (point-to-point) no data transfer on DAT
+	ADTC // addressed (point-to-point) data transfer on DAT
+} CommandType_t;
 
 #endif
