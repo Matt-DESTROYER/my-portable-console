@@ -17,6 +17,6 @@ typedef struct Command {
 	uint32_t argument     : 32;
 	uint8_t CRC7          :  7;
 	uint8_t end           :  1;
-} Command_t
+} Command_t;
 
 #endif
