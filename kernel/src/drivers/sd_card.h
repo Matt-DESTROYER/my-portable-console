@@ -67,15 +67,15 @@ typedef struct Response6 {
 typedef Response6_t R6_t;
 
 typedef struct Response7 {
-	uint8_t start : 1;
-	uint8_t transmission : 1;
-	uint8_t command_index : 6;
-	uint32_t reserved1 : 18;
-	uint32_t pcie_1_2V : 1;
-	uint32_t pcie_response : 1;
-	uint32_t voltage_accepted : 4;
-	uint16_t pattern_check : 8;
-	uint16_t crc7 : 7;
+	uint8_t start             :  1;
+	uint8_t transmission      :  1;
+	uint8_t command_index     :  6;
+	uint32_t reserved1        : 18;
+	uint32_t pcie_1_2V        :  1;
+	uint32_t pcie_response    :  1;
+	uint32_t voltage_accepted :  4;
+	uint16_t pattern_check    :  8;
+	uint16_t crc7             :  7;
 	uint16_t end;
 } Response7_t;
 typedef Response7_t R7_t;
@@ -85,5 +85,10 @@ typedef Response7_t R7_t;
 #define VOLTAGE_ACCEPTED_LOW_VOLTAGE_RANGE 0b0010
 #define VOLTAGE_ACCEPTED_RESERVED1         0b0100
 #define VOLTAGE_ACCEPTED_RESERVED2         0b1000
+
+// 4.5 Cyclic Redundancy Code (CRC)
+// https://en.wikipedia.org/wiki/Computation_of_cyclic_redundancy_checks
+#define CRC7_POLYNOMIAL 0b10001001
+uint8_t crc7(uint8_t* buffer, size_t size);
 
 #endif
