@@ -5,6 +5,7 @@
 
 #include "pico/stdlib.h"
 
+// 4.7.1 Command Types
 typedef enum CommandType {
 	BC,  // broadcast (no response)
 	BCR, // broadcast (with) response
@@ -12,6 +13,7 @@ typedef enum CommandType {
 	ADTC // addressed (point-to-point) data transfer on DAT
 } CommandType_t;
 
+// 4.7.2 Command Format
 typedef struct Command {
 	uint8_t start         :  1;
 	uint8_t transmission  :  1;
@@ -21,6 +23,7 @@ typedef struct Command {
 	uint8_t end           :  1;
 } Command_t;
 
+// 4.9 Responses
 typedef struct Response {
 	uint8_t start         :  1;
 	uint8_t transmission  :  1;
