@@ -10,4 +10,13 @@ typedef enum CommandType {
 	ADTC // addressed (point-to-point) data transfer on DAT
 } CommandType_t;
 
+typedef struct Command {
+	uint8_t start         :  1;
+	uint8_t transmission  :  1;
+	uint8_t command_index :  6;
+	uint32_t argument     : 32;
+	uint8_t CRC7          :  7;
+	uint8_t end           :  1;
+} Command_t
+
 #endif
