@@ -91,4 +91,7 @@ typedef Response7_t R7_t;
 #define CRC7_POLYNOMIAL 0b10001001
 uint8_t crc7(uint8_t* buffer, size_t size);
 
+#define CRC16_POLYNOMIAL 0b0001000000100001 // 0b10001000000100001
+uint16_t crc16(uint16_t* buffer, size_t size);
+
 #endif
