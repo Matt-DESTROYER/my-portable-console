@@ -76,7 +76,7 @@ typedef struct Response7 {
 	uint32_t voltage_accepted :  4;
 	uint16_t pattern_check    :  8;
 	uint16_t crc7             :  7;
-	uint16_t end;
+	uint16_t end              :  1;
 } Response7_t;
 typedef Response7_t R7_t;
 
